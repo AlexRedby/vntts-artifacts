@@ -15,6 +15,9 @@ Callers can pass `directory_mode=0o700` when newly created application-data
 directories require private permissions. Existing directory permissions are
 never changed.
 
+The distribution is hosted independently on the `durable-file` orphan branch
+of the VNTTS artifacts repository and released with namespaced immutable tags.
+
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
 ```

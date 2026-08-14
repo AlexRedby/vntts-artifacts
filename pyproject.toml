@@ -12,7 +12,7 @@ license = { text = "MIT" }
 authors = [{ name = "Alex Redby" }]
 
 [project.urls]
-Repository = "https://github.com/AlexRedby/durable-file"
+Repository = "https://github.com/AlexRedby/vntts-artifacts/tree/durable-file"
 
 [tool.setuptools.packages.find]
 where = ["src"]
