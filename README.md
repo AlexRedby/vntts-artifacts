@@ -1,7 +1,8 @@
 # VNTTS Artifacts
 
-Small, dependency-free Python contracts shared by applications that produce or
-consume VNTTS data.
+Small Python contracts shared by applications that produce or consume VNTTS
+data. The core is dependency-free; PCM WAV publication has an optional NumPy
+extra.
 
 The package owns versioned artifact formats and the durability primitives needed
 to publish them. It intentionally excludes OCR, TTS engines, user interfaces,
@@ -14,7 +15,10 @@ provider integrations, and game-specific extraction.
   story line ID and SHA-256 of the current story text
 - VNTTS voice manifest JSON, version 2, with read compatibility for legacy
   unversioned manifests
-- atomic file publication, streaming SHA-256, and stable artifact slugs
+- atomic file publication, streaming SHA-256, stable text hashes and artifact
+  slugs
+- the `wav-pcm16-mono` format constant plus shared PCM WAV probing, reading and
+  atomic publication helpers
 
 Generated-audio entries use portable POSIX-relative paths, mono 16-bit PCM WAV,
 and include the audio SHA-256, sample rate, and sample count. Consumers reject
@@ -48,5 +52,7 @@ extensions.
 ```bash
 python -m unittest discover -s tests
 ```
+
+Install `vntts-artifacts[audio]` when using `write_pcm16_wav`.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.

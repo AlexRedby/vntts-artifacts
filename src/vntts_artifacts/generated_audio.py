@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path, PurePosixPath
 
 from vntts_artifacts.atomic_io import atomic_write_json
+from vntts_artifacts.audio import PCM16_MONO_WAV_FORMAT
 from vntts_artifacts.file_integrity import sha256_file
+from vntts_artifacts.hashing import text_sha256 as _text_sha256
 
 GENERATED_AUDIO_SCHEMA = "vntts.generated-audio"
 GENERATED_AUDIO_SCHEMA_VERSION = 1
@@ -54,11 +55,11 @@ class GeneratedAudioIndex:
         metadata, entries = _validate_document(document, path)
         return cls(path, metadata, entries)
 
-    def find(self, line_id, text_sha256, *, verify_file=True):
+    def find(self, line_id, text_hash, *, verify_file=True):
         """Return one exact, current, intact generation or ``None``."""
-        if not isinstance(line_id, str) or not isinstance(text_sha256, str):
+        if not isinstance(line_id, str) or not isinstance(text_hash, str):
             return None
-        entry = self._entries_by_identity.get((line_id.strip(), text_sha256.strip()))
+        entry = self._entries_by_identity.get((line_id.strip(), text_hash.strip()))
         if entry is None or not verify_file:
             return entry
         try:
@@ -72,9 +73,8 @@ class GeneratedAudioIndex:
 
 
 def text_sha256(text):
-    if not isinstance(text, str):
-        raise TypeError("Generated-audio text must be a string")
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    """Backward-compatible import path for the shared artifact text hash."""
+    return _text_sha256(text)
 
 
 def load_generated_audio_manifest(path):
@@ -141,7 +141,7 @@ def _validate_document(document, manifest_path):
         audio_hash = _required_hash(record, "audio_sha256", index)
         audio = _audio_path(manifest_path, record.get("audio"), index)
         audio_format = _required_text(record, "audio_format", index)
-        if audio_format != "wav-pcm16-mono":
+        if audio_format != PCM16_MONO_WAV_FORMAT:
             raise GeneratedAudioManifestError(
                 f"Generated-audio entry {index} has unsupported audio_format {audio_format!r}"
             )

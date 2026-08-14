@@ -2,10 +2,10 @@
 
 import json
 from dataclasses import asdict, dataclass, is_dataclass
-from hashlib import sha256
 from pathlib import Path
 
 from vntts_artifacts.atomic_io import atomic_output_path
+from vntts_artifacts.hashing import text_sha256
 
 STORY_INDEX_SCHEMA = "vntts.story-index"
 STORY_INDEX_SCHEMA_VERSION = 1
@@ -54,7 +54,7 @@ def load_story_index(path):
                 text = _required_text(record, "text")
                 sequence = int(record["sequence"])
                 kind = str(record.get("kind") or "dialogue").strip()
-                calculated_text_hash = sha256(text.encode("utf-8")).hexdigest()
+                calculated_text_hash = text_sha256(text)
                 declared_text_hash = str(record.get("text_sha256") or "").strip()
                 if declared_text_hash and declared_text_hash != calculated_text_hash:
                     raise ValueError(f"text_sha256 does not match line {line_id!r}")

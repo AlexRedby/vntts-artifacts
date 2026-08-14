@@ -1,10 +1,18 @@
 import hashlib
 import json
 import unittest
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from vntts_artifacts.audio import (
+    PCM16_MONO_WAV_FORMAT,
+    Pcm16MonoWavError,
+    probe_pcm16_mono_wav,
+    read_pcm16_mono_wav,
+    write_pcm16_wav,
+)
 from vntts_artifacts.file_integrity import sha256_file
 from vntts_artifacts.generated_audio import (
     GeneratedAudioIndex,
@@ -12,6 +20,7 @@ from vntts_artifacts.generated_audio import (
     text_sha256,
     write_generated_audio_manifest,
 )
+from vntts_artifacts.hashing import text_sha256 as shared_text_sha256
 from vntts_artifacts.story_index import StoryIndexError, load_story_index, write_story_index
 from vntts_artifacts.text_utils import slugify
 from vntts_artifacts.voice_manifest import (
@@ -35,6 +44,34 @@ class ProducerLine:
 
 
 class ContractTest(unittest.TestCase):
+    def test_pcm16_wav_round_trip_and_probe(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "audio.wav"
+            write_pcm16_wav(path, [-1.0, -0.5, 0.0, 0.5, 1.0], 24_000)
+            samples, info = read_pcm16_mono_wav(path)
+            probed = probe_pcm16_mono_wav(path)
+
+        self.assertEqual(PCM16_MONO_WAV_FORMAT, "wav-pcm16-mono")
+        self.assertEqual(len(samples), 5)
+        self.assertEqual(info.sample_rate, 24_000)
+        self.assertEqual(info.sample_count, 5)
+        self.assertEqual(probed, info)
+        self.assertAlmostEqual(info.peak, 32767 / 32768)
+
+    def test_pcm16_wav_probe_rejects_stereo(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "stereo.wav"
+            with wave.open(str(path), "wb") as output:
+                output.setnchannels(2)
+                output.setsampwidth(2)
+                output.setframerate(24_000)
+                output.writeframes(b"\0" * 8)
+            with self.assertRaisesRegex(Pcm16MonoWavError, "mono 16-bit"):
+                probe_pcm16_mono_wav(path)
+
+    def test_text_hash_is_shared_across_contracts(self):
+        self.assertEqual(text_sha256("Hello"), shared_text_sha256("Hello"))
+
     def test_story_index_round_trip_preserves_producer_extensions(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "story.jsonl"
