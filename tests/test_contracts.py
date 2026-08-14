@@ -1,3 +1,4 @@
+import hashlib
 import json
 import unittest
 from dataclasses import dataclass
@@ -5,7 +6,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from vntts_artifacts.file_integrity import sha256_file
-from vntts_artifacts.story_index import load_story_index, write_story_index
+from vntts_artifacts.generated_audio import (
+    GeneratedAudioIndex,
+    GeneratedAudioManifestError,
+    text_sha256,
+    write_generated_audio_manifest,
+)
+from vntts_artifacts.story_index import StoryIndexError, load_story_index, write_story_index
 from vntts_artifacts.text_utils import slugify
 from vntts_artifacts.voice_manifest import (
     VoiceManifestError,
@@ -85,6 +92,117 @@ class ContractTest(unittest.TestCase):
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
         )
         self.assertEqual(slugify("Ms. NewBabel"), "ms-newbabel")
+
+    def test_generated_audio_round_trip_and_exact_lookup(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "audio" / "game-1.wav"
+            audio.parent.mkdir()
+            audio.write_bytes(b"synthetic audio fixture")
+            manifest = root / "generated-audio.json"
+            write_generated_audio_manifest(
+                manifest,
+                {"game": "Example", "language": "en"},
+                [
+                    {
+                        "line_id": "game:1",
+                        "text_sha256": text_sha256("Hello"),
+                        "audio": "audio/game-1.wav",
+                        "audio_format": "wav-pcm16-mono",
+                        "audio_sha256": sha256_file(audio),
+                        "sample_rate": 24_000,
+                        "sample_count": 48_000,
+                        "provider": "synthetic-test",
+                    }
+                ],
+            )
+
+            index = GeneratedAudioIndex.load(manifest)
+            raw_entry = json.loads(manifest.read_text(encoding="utf-8"))["entries"][0]
+
+        self.assertEqual(index.metadata["schema"], "vntts.generated-audio")
+        self.assertEqual(
+            index.find("game:1", text_sha256("Hello"), verify_file=False).sample_rate,
+            24_000,
+        )
+        self.assertIsNone(index.find("game:1", text_sha256("Changed")))
+        self.assertEqual(raw_entry["provider"], "synthetic-test")
+
+    def test_generated_audio_rejects_duplicate_identity_and_unsafe_paths(self):
+        entry = {
+            "line_id": "game:1",
+            "text_sha256": hashlib.sha256(b"Hello").hexdigest(),
+            "audio": "../outside.wav",
+            "audio_format": "wav-pcm16-mono",
+            "audio_sha256": hashlib.sha256(b"audio").hexdigest(),
+            "sample_rate": 24_000,
+            "sample_count": 1,
+        }
+        with TemporaryDirectory() as directory:
+            manifest = Path(directory) / "generated-audio.json"
+            with self.assertRaisesRegex(GeneratedAudioManifestError, "safe relative"):
+                write_generated_audio_manifest(manifest, {}, [entry])
+
+            safe_entry = {**entry, "audio": "audio.wav"}
+            with self.assertRaisesRegex(GeneratedAudioManifestError, "Duplicate"):
+                write_generated_audio_manifest(manifest, {}, [safe_entry, safe_entry])
+
+    def test_generated_audio_lookup_rejects_modified_file(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "line.wav"
+            audio.write_bytes(b"original")
+            manifest = root / "generated-audio.json"
+            write_generated_audio_manifest(
+                manifest,
+                {},
+                [
+                    {
+                        "line_id": "game:1",
+                        "text_sha256": text_sha256("Hello"),
+                        "audio": "line.wav",
+                        "audio_format": "wav-pcm16-mono",
+                        "audio_sha256": sha256_file(audio),
+                        "sample_rate": 24_000,
+                        "sample_count": 1,
+                    }
+                ],
+            )
+            index = GeneratedAudioIndex.load(manifest)
+            audio.write_bytes(b"modified")
+
+            self.assertIsNone(index.find("game:1", text_sha256("Hello")))
+
+    def test_story_index_rejects_text_hash_drift(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            path.write_text(
+                json.dumps(
+                    {
+                        "record_type": "metadata",
+                        "schema": "vntts.story-index",
+                        "schema_version": 1,
+                        "line_count": 1,
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "record_type": "line",
+                        "line_id": "game:1",
+                        "chapter": "1",
+                        "sequence": 1,
+                        "speaker": "Ada",
+                        "text": "Hello",
+                        "text_sha256": "0" * 64,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(StoryIndexError, "text_sha256"):
+                load_story_index(path)
 
 
 if __name__ == "__main__":

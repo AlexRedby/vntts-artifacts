@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import asdict, dataclass, is_dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from vntts_artifacts.atomic_io import atomic_output_path
@@ -22,6 +23,7 @@ class StoryIndexLine:
     speaker: str
     text: str
     kind: str
+    text_sha256: str
 
 
 def load_story_index(path):
@@ -52,11 +54,25 @@ def load_story_index(path):
                 text = _required_text(record, "text")
                 sequence = int(record["sequence"])
                 kind = str(record.get("kind") or "dialogue").strip()
+                calculated_text_hash = sha256(text.encode("utf-8")).hexdigest()
+                declared_text_hash = str(record.get("text_sha256") or "").strip()
+                if declared_text_hash and declared_text_hash != calculated_text_hash:
+                    raise ValueError(f"text_sha256 does not match line {line_id!r}")
             except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
                 raise StoryIndexError(
                     f"Invalid story-index record at {path}:{row_number}: {error}"
                 ) from error
-            lines.append(StoryIndexLine(line_id, chapter, sequence, speaker, text, kind))
+            lines.append(
+                StoryIndexLine(
+                    line_id,
+                    chapter,
+                    sequence,
+                    speaker,
+                    text,
+                    kind,
+                    calculated_text_hash,
+                )
+            )
 
     declared_count = metadata.get("line_count")
     if isinstance(declared_count, int) and declared_count != len(lines):
