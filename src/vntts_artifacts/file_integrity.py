@@ -1,14 +1,5 @@
-"""Canonical streaming file-integrity helpers."""
+"""Compatibility import for the shared durable-file dependency."""
 
-import hashlib
-from pathlib import Path
+from durable_file import sha256_file
 
-
-def sha256_file(path, *, chunk_size=1024 * 1024):
-    if chunk_size < 1:
-        raise ValueError("chunk_size must be positive")
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as source:
-        for chunk in iter(lambda: source.read(chunk_size), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+__all__ = ["sha256_file"]

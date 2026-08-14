@@ -4,9 +4,10 @@ Small Python contracts shared by applications that produce or consume VNTTS
 data. The core is dependency-free; PCM WAV publication has an optional NumPy
 extra.
 
-The package owns versioned artifact formats and the durability primitives needed
-to publish them. It intentionally excludes OCR, TTS engines, user interfaces,
-provider integrations, and game-specific extraction.
+The package owns versioned artifact formats and delegates generic publication
+and checksum primitives to the separately released `durable-file` package. It
+intentionally excludes OCR, TTS engines, user interfaces, provider integrations,
+and game-specific extraction.
 
 ## Contracts
 

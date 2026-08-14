@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vntts-artifacts"
-version = "0.3.0"
+version = "0.4.0"
 description = "Versioned artifact contracts shared by VNTTS producers and consumers"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Alex Redby" }]
+dependencies = [
+    "durable-file @ git+https://github.com/AlexRedby/vntts-artifacts.git@durable-file-v0.1.0",
+]
 
 [project.optional-dependencies]
 audio = ["numpy>=1.24"]
