@@ -5,6 +5,6 @@ and a consumer.
 
 ## Shared audio boundary
 
-- [ ] Publish `v0.3.0` with the PCM16 mono WAV format constant, probe/read/write
+- [x] Publish `v0.3.0` with the PCM16 mono WAV format constant, probe/read/write
       helpers, one text hash helper, and compatibility tests; then update both
       VNTTS consumers to the immutable tag.
