@@ -18,6 +18,8 @@ and game-specific extraction.
   unversioned manifests
 - atomic file publication, streaming SHA-256, stable text hashes and artifact
   slugs
+- deterministic game-pack artifact bindings with portable relative paths and
+  full-file SHA-256 validation before a consumer trusts a pack
 - the `wav-pcm16-mono` format constant plus shared PCM WAV probing, reading and
   atomic publication helpers
 
@@ -47,6 +49,31 @@ identity is not available.
 
 Top-level and entry-level producer provenance fields are preserved as contract
 extensions.
+
+Game-pack producers can bind artifact files without embedding machine-local
+paths. Consumers resolve every binding inside the pack directory and reject
+missing, modified, malformed, absolute, or path-traversing entries:
+
+```python
+from vntts_artifacts.game_pack import (
+    create_game_pack_artifact_bindings,
+    validate_game_pack_artifact_bindings,
+)
+
+bindings = create_game_pack_artifact_bindings(
+    pack_directory,
+    {
+        "story_index": story_index,
+        "voice_manifest": voice_manifest,
+        "generated_audio": generated_audio_manifest,
+    },
+)
+validated = validate_game_pack_artifact_bindings(
+    pack_directory,
+    bindings,
+    required=("story_index", "voice_manifest"),
+)
+```
 
 ## Development
 

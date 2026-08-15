@@ -14,6 +14,11 @@ from vntts_artifacts.audio import (
     write_pcm16_wav,
 )
 from vntts_artifacts.file_integrity import sha256_file
+from vntts_artifacts.game_pack import (
+    GamePackError,
+    create_game_pack_artifact_bindings,
+    validate_game_pack_artifact_bindings,
+)
 from vntts_artifacts.generated_audio import (
     GeneratedAudioIndex,
     GeneratedAudioManifestError,
@@ -44,6 +49,83 @@ class ProducerLine:
 
 
 class ContractTest(unittest.TestCase):
+    def test_game_pack_artifact_checksums_bind_and_validate_portable_paths(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            story = root / "story" / "index.jsonl"
+            voices = root / "voices" / "manifest.json"
+            story.parent.mkdir()
+            voices.parent.mkdir()
+            story.write_bytes(b"story index")
+            voices.write_bytes(b"voice manifest")
+
+            bindings = create_game_pack_artifact_bindings(
+                root,
+                {
+                    "voice_manifest": voices,
+                    "story_index": story,
+                },
+            )
+            validated = validate_game_pack_artifact_bindings(
+                root,
+                bindings,
+                required=("story_index", "voice_manifest"),
+            )
+
+        self.assertEqual(list(bindings), ["story_index", "voice_manifest"])
+        self.assertEqual(bindings["story_index"]["path"], "story/index.jsonl")
+        self.assertEqual(
+            bindings["story_index"]["sha256"], hashlib.sha256(b"story index").hexdigest()
+        )
+        self.assertEqual(
+            [(entry.name, entry.path.name) for entry in validated],
+            [("story_index", "index.jsonl"), ("voice_manifest", "manifest.json")],
+        )
+
+    def test_game_pack_artifact_checksum_rejects_modified_file(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            story = root / "story.jsonl"
+            story.write_bytes(b"original")
+            bindings = create_game_pack_artifact_bindings(root, {"story_index": story})
+            story.write_bytes(b"modified")
+
+            with self.assertRaisesRegex(GamePackError, "checksum does not match"):
+                validate_game_pack_artifact_bindings(root, bindings)
+
+    def test_game_pack_artifact_checksum_rejects_unsafe_or_missing_bindings(self):
+        digest = hashlib.sha256(b"outside").hexdigest()
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "pack"
+            root.mkdir()
+            outside = root.parent / "outside.json"
+            outside.write_bytes(b"outside")
+            with self.assertRaisesRegex(GamePackError, "leaves the pack directory"):
+                create_game_pack_artifact_bindings(root, {"story_index": outside})
+            with self.assertRaisesRegex(GamePackError, "safe relative path"):
+                validate_game_pack_artifact_bindings(
+                    root,
+                    {"story_index": {"path": "../outside", "sha256": digest}},
+                )
+            with self.assertRaisesRegex(GamePackError, "missing required"):
+                validate_game_pack_artifact_bindings(
+                    root,
+                    {"story_index": {"path": "story.jsonl", "sha256": digest}},
+                    required=("story_index", "voice_manifest"),
+                )
+
+    def test_game_pack_artifact_checksum_rejects_malformed_digest(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            story = root / "story.jsonl"
+            story.write_bytes(b"story")
+
+            with self.assertRaisesRegex(GamePackError, "lowercase SHA-256"):
+                validate_game_pack_artifact_bindings(
+                    root,
+                    {"story_index": {"path": "story.jsonl", "sha256": "ABC"}},
+                )
+
     def test_pcm16_wav_round_trip_and_probe(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "audio.wav"
