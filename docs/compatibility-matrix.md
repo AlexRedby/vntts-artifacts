@@ -6,7 +6,7 @@ releases. “Producer” means the package can publish a validated artifact;
 
 | Contract | Current wire version | First producer support | First consumer support | Current public APIs |
 | --- | ---: | --- | --- | --- |
-| Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | `write_story_index`, `load_story_index`; lossless document APIs are unreleased |
+| Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | Legacy line APIs since `v0.1.0`; `StoryIndexDocument`, `load_story_index_document`, and `write_story_index_document` since `v0.6.1` |
 | Voice manifest | 2 | `v0.1.0` | `v0.1.0` | `write_voice_manifest`, `load_voice_manifest` |
 | Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | `write_generated_audio_manifest`, `GeneratedAudioIndex.load` |
 | Game pack (`vntts.game-pack`) | 1 | `v0.6.0` | `v0.6.0` | `write_game_pack`, `load_game_pack` |
@@ -20,6 +20,9 @@ releases. “Producer” means the package can publish a validated artifact;
 - `v0.6.0` is the first immutable release containing the complete game-pack and
   voice-generation-queue readers and writers. Both applications now pin this
   exact release.
+- `v0.6.1` is the first release containing the lossless story-index
+  `StoryIndexDocument`, `StoryIndexRecord`, and `StoryIndexCollection` APIs.
+  This is a package API addition without a story-index wire-version change.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
 - Story-index collection metadata, canonical source-audio fields, and their
@@ -40,14 +43,13 @@ releases. “Producer” means the package can publish a validated artifact;
 - A game-pack consumer trusts only resolved paths returned by `load_game_pack`
   after the complete checksum and nested-reference validation succeeds.
 
-## Unreleased additive APIs
+## Additive story-index APIs
 
 The lossless story-index `StoryIndexDocument`, `StoryIndexRecord`, and
 `StoryIndexCollection` APIs preserve producer-owned authoring fields without a
-wire-version change. They are not part of immutable `v0.6.0`; consumers need
-the next immutable package release before importing these Python symbols. Older
-schema-v1 consumers remain wire-compatible and may continue ignoring producer
-extensions.
+wire-version change. They first ship in `v0.6.1`; consumers must use `v0.6.1`
+or newer before importing these Python symbols. Older schema-v1 consumers
+remain wire-compatible and may continue ignoring producer extensions.
 
 ## Adoption evidence
 

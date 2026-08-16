@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## [0.6.1] - 2026-08-16
+
+Additive patch release for lossless, collection-driven story authoring. The
+story-index wire contract remains schema version 1.
 
 ### Added
 

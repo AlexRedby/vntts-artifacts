@@ -59,8 +59,8 @@ continue reading documents written by the lossless API because producer fields
 remain additive. Existing `load_story_index` behavior and return types are
 unchanged.
 
-The Python document/record API itself is newer than immutable release `v0.6.0`.
+The Python document/record API first ships in immutable release `v0.6.1`.
 Consumers that import `StoryIndexDocument`, `StoryIndexRecord`,
 `StoryIndexCollection`, `load_story_index_document`, or
-`write_story_index_document` require the next immutable `vntts-artifacts`
-release even though the wire schema version does not change.
+`write_story_index_document` require `vntts-artifacts` `v0.6.1` or newer even
+though the wire schema version does not change.
