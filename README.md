@@ -60,6 +60,31 @@ requires `collection_id`, `title`, `kind`, and an integer `order`; line records
 may carry an optional `collection_id`, which must refer to a declared collection.
 Additional collection fields are preserved for producers.
 
+Generic authoring tools should use the additive lossless document API:
+
+```python
+from vntts_artifacts import StoryIndexDocument, write_story_index_document
+
+document = StoryIndexDocument.load(story_index_path)
+records = document.records_for_collection("main-story", speakable_only=True)
+for record in records:
+    queue_id = f"{record.line_id}:{record.text_sha256[:16]}"
+    voice = record.voice_character
+    context = record.context or {
+        "previous_text": record.previous_text,
+        "next_text": record.next_text,
+    }
+
+# Typed records retain their complete producer record when republished.
+copy = write_story_index_document(output_path, document.metadata, document.records)
+```
+
+`StoryIndexRecord` remains a subtype of `StoryIndexLine`, while `to_record()`
+and `producer_fields` expose lossless producer data. Existing
+`load_story_index` callers keep their original `(metadata, StoryIndexLine...)`
+return shape. Detailed validation and compatibility guidance is in
+[`docs/story-index-authoring.md`](docs/story-index-authoring.md).
+
 ## Voice-generation queues
 
 The version 1 queue is an authoring exchange, not execution state. Its first

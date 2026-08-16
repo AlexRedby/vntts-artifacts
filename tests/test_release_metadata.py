@@ -15,7 +15,10 @@ class ReleaseMetadataTest(unittest.TestCase):
         self.assertEqual(package_version, "0.6.0")
         self.assertEqual(vntts_artifacts.__version__, package_version)
         self.assertIn(f"## [{package_version}] - 2026-08-16", changelog)
-        self.assertNotIn("Unreleased", changelog)
+        self.assertLess(
+            changelog.index("## Unreleased"),
+            changelog.index(f"## [{package_version}] - 2026-08-16"),
+        )
 
 
 if __name__ == "__main__":

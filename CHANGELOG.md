@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Lossless `StoryIndexDocument`, `StoryIndexRecord`, and
+  `StoryIndexCollection` APIs for collection-driven authoring. They preserve
+  producer metadata and complete line records while validating common voice,
+  context, and source-audio fields without changing story-index wire schema 1.
+
 ## [0.6.0] - 2026-08-16
 
 Immutable `vntts-artifacts` release containing the complete game-pack and

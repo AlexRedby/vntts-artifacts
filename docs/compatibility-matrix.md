@@ -6,7 +6,7 @@ releases. “Producer” means the package can publish a validated artifact;
 
 | Contract | Current wire version | First producer support | First consumer support | Current public APIs |
 | --- | ---: | --- | --- | --- |
-| Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | `write_story_index`, `load_story_index` |
+| Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | `write_story_index`, `load_story_index`; lossless document APIs are unreleased |
 | Voice manifest | 2 | `v0.1.0` | `v0.1.0` | `write_voice_manifest`, `load_voice_manifest` |
 | Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | `write_generated_audio_manifest`, `GeneratedAudioIndex.load` |
 | Game pack (`vntts.game-pack`) | 1 | `v0.6.0` | `v0.6.0` | `write_game_pack`, `load_game_pack` |
@@ -39,6 +39,15 @@ releases. “Producer” means the package can publish a validated artifact;
   `queue_id = line_id + ":" + text_sha256[:16]`.
 - A game-pack consumer trusts only resolved paths returned by `load_game_pack`
   after the complete checksum and nested-reference validation succeeds.
+
+## Unreleased additive APIs
+
+The lossless story-index `StoryIndexDocument`, `StoryIndexRecord`, and
+`StoryIndexCollection` APIs preserve producer-owned authoring fields without a
+wire-version change. They are not part of immutable `v0.6.0`; consumers need
+the next immutable package release before importing these Python symbols. Older
+schema-v1 consumers remain wire-compatible and may continue ignoring producer
+extensions.
 
 ## Adoption evidence
 
