@@ -4,12 +4,6 @@ Keep this file limited to actionable unfinished contract work. Remove completed
 items and empty sections after verification; keep stable contract behavior and
 migration guidance in the README or dedicated documentation.
 
-## Stabilize the authoring exchange
-
-- [ ] Add synthetic compatibility fixtures covering extractor source output,
-      a generation queue, generated-audio publication, final game-pack assembly,
-      checksum failure, and VNTTS consumption.
-
 ## Release and adoption
 
 - [ ] Publish one immutable `vntts-artifacts` release containing the completed

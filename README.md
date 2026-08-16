@@ -105,6 +105,10 @@ write_voice_generation_queue(copy, queue.metadata, queue.items)
 Queue construction, filtering, model execution, retries, review state, and
 resumable job state remain application responsibilities.
 
+The complete extraction-to-consumption identity flow and its synthetic
+compatibility fixture are documented in
+[`docs/authoring-exchange.md`](docs/authoring-exchange.md).
+
 ## Game packs
 
 A version 1 game pack is a JSON document with this envelope:
