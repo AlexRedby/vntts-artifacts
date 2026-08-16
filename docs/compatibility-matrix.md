@@ -18,8 +18,8 @@ releases. “Producer” means the package can publish a validated artifact;
   the complete `vntts.game-pack` document reader or writer. It must not be
   treated as game-pack schema version 1 support.
 - `v0.6.0` is the first immutable release containing the complete game-pack and
-  voice-generation-queue readers and writers. Cross-project adoption still
-  requires both applications to pin this exact release.
+  voice-generation-queue readers and writers. Both applications now pin this
+  exact release.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
 - Story-index collection metadata, canonical source-audio fields, and their
@@ -40,7 +40,21 @@ releases. “Producer” means the package can publish a validated artifact;
 - A game-pack consumer trusts only resolved paths returned by `load_game_pack`
   after the complete checksum and nested-reference validation succeeds.
 
+## Adoption evidence
+
+The release and both consumer pins were independently checked on 2026-08-16:
+
+- The published annotated `v0.6.0` tag in origin peels to
+  `9898f229673b99ed77a718b18fb3247d7f1c5fcf`.
+- `reverse1999-extractor` commit
+  `36c3002735afdb5d3a27c48b923ec614412b310d` pins tag `v0.6.0` in
+  `pyproject.toml`; its `uv.lock` resolves that tag to `9898f229...`. Its
+  adoption suite passed 160 tests.
+- VNTTS commit `67e7ef95831f67d40df48a7d9df8f942eb4b7399` pins tag `v0.6.0`
+  in `pyproject.toml`; its `uv.lock` resolves that tag to `9898f229...`. Its
+  adoption suite passed 589 tests.
+
 The synthetic compatibility flow in
-[`authoring-exchange.md`](authoring-exchange.md) verifies the current contracts
-together. It does not replace the application pinning required for
-cross-project adoption.
+[`authoring-exchange.md`](authoring-exchange.md) verifies the contracts together
+inside this package; the consumer evidence above verifies the released boundary
+across all three repositories.

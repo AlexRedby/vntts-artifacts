@@ -29,5 +29,8 @@ voice-generation-queue contracts.
 
 ### Adoption
 
-- VNTTS and `reverse1999-extractor` should both pin this exact `v0.6.0` release
-  before relying on the new contracts across repository boundaries.
+- The published annotated `v0.6.0` tag resolves to release commit
+  `9898f229673b99ed77a718b18fb3247d7f1c5fcf`.
+- `reverse1999-extractor` adoption commit `36c3002` pins `v0.6.0` and passed its
+  160-test suite.
+- VNTTS adoption commit `67e7ef9` pins `v0.6.0` and passed its 589-test suite.
