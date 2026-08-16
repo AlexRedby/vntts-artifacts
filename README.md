@@ -108,6 +108,8 @@ resumable job state remain application responsibilities.
 The complete extraction-to-consumption identity flow and its synthetic
 compatibility fixture are documented in
 [`docs/authoring-exchange.md`](docs/authoring-exchange.md).
+Release-level producer and consumer support for every current wire format is
+listed in [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md).
 
 ## Game packs
 

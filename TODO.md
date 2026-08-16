@@ -9,6 +9,3 @@ migration guidance in the README or dedicated documentation.
 - [ ] Publish one immutable `vntts-artifacts` release containing the completed
       contracts, then pin both VNTTS and `reverse1999-extractor` to that same
       release.
-- [ ] Add a compatibility matrix documenting which producer and consumer
-      versions support each story-index, voice-manifest, generated-audio,
-      generation-queue, and game-pack schema version.
