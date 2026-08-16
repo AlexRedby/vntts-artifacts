@@ -14,6 +14,11 @@ and game-specific extraction.
 - `vntts.story-index` JSONL, schema version 1
 - `vntts.generated-audio` JSON, schema version 1, with exact lookup by stable
   story line ID and SHA-256 of the current story text
+- `vntts.voice-generation-queue` JSONL, schema version 1, with immutable line,
+  text, queue, source-audio, and authoring-action identity
+- `vntts.game-pack` JSON, schema version 1, binding a game identity, producer
+  provenance, story index, voice manifest, all referenced voice WAVs, and an
+  optional generated-audio manifest with all of its WAVs
 - VNTTS voice manifest JSON, version 2, with read compatibility for legacy
   unversioned manifests
 - atomic file publication, streaming SHA-256, stable text hashes and artifact
@@ -50,9 +55,124 @@ identity is not available.
 Top-level and entry-level producer provenance fields are preserved as contract
 extensions.
 
-Game-pack producers can bind artifact files without embedding machine-local
-paths. Consumers resolve every binding inside the pack directory and reject
-missing, modified, malformed, absolute, or path-traversing entries:
+Story-index metadata may declare ordered authoring collections. Each collection
+requires `collection_id`, `title`, `kind`, and an integer `order`; line records
+may carry an optional `collection_id`, which must refer to a declared collection.
+Additional collection fields are preserved for producers.
+
+## Voice-generation queues
+
+The version 1 queue is an authoring exchange, not execution state. Its first
+JSONL row is a metadata record with `schema`, `schema_version`, and
+`item_count`; following rows have `record_type: "generation_item"`. The shared
+reader validates the exact UTF-8 text SHA-256 and the stable queue identity:
+
+```text
+queue_id = line_id + ":" + text_sha256[:16]
+```
+
+When `source_audio_status` is present, its action is fixed:
+
+| Source-audio status | Action |
+| --- | --- |
+| `no_audio` | `generate` |
+| `configured_unavailable` | `prefer_source_audio` |
+| `unresolved` | `manual_review` |
+| `unchecked` | `resolve_audio` |
+
+The reader also rejects duplicate line or queue IDs, mismatched summary counts,
+invalid hashes and timestamps, unsupported actions, non-pending embedded states,
+and unsafe source-field types. A producer's `source_story_index` is retained
+only as untrusted provenance text: the reader never resolves or opens that
+machine-local path. Delivery annotations and other producer fields are
+preserved verbatim.
+
+```python
+from vntts_artifacts import (
+    VoiceGenerationQueue,
+    load_voice_generation_queue,
+    write_voice_generation_queue,
+)
+
+queue_path = write_voice_generation_queue(output, metadata, generation_items)
+metadata, typed_items = load_voice_generation_queue(queue_path)
+queue = VoiceGenerationQueue.load(queue_path)
+
+# A loaded typed item can be republished without losing producer extensions.
+write_voice_generation_queue(copy, queue.metadata, queue.items)
+```
+
+Queue construction, filtering, model execution, retries, review state, and
+resumable job state remain application responsibilities.
+
+## Game packs
+
+A version 1 game pack is a JSON document with this envelope:
+
+```json
+{
+  "schema": "vntts.game-pack",
+  "schema_version": 1,
+  "game": {"id": "example-game", "version": "1.2.3"},
+  "producers": [{"name": "extractor", "version": "2.0.0"}],
+  "created_at": "2026-08-16T12:00:00Z",
+  "components": {
+    "story_index": {"path": "story.jsonl", "sha256": "<lowercase SHA-256>"},
+    "voice_manifest": {"path": "voices.json", "sha256": "<lowercase SHA-256>"},
+    "voice_wavs": [
+      {"path": "voices/ada.wav", "sha256": "<lowercase SHA-256>"}
+    ],
+    "generated_audio": {
+      "manifest": {
+        "path": "generated-audio.json",
+        "sha256": "<lowercase SHA-256>"
+      },
+      "wavs": [
+        {"path": "generated/line-1.wav", "sha256": "<lowercase SHA-256>"}
+      ]
+    }
+  },
+  "org.example.provenance": {"build_id": "optional opaque extension"}
+}
+```
+
+`story_index`, `voice_manifest`, and `voice_wavs` are required;
+`generated_audio` is optional. Every path is POSIX-relative to the pack
+directory. The reader rejects missing or modified files, absolute paths, path
+traversal, duplicate bindings, referenced-but-undeclared WAVs, declared WAVs
+that are not referenced, unsupported component names, and unnamespaced unknown
+top-level fields. A top-level extension name must contain at least one dot.
+Extensions are returned as opaque metadata and never interpreted as trusted
+artifacts.
+
+The writer derives nested WAV bindings from the two manifests, so callers only
+provide the three semantic component paths:
+
+```python
+from vntts_artifacts import load_game_pack, write_game_pack
+
+pack = write_game_pack(
+    pack_directory / "game-pack.json",
+    {
+        "game": {"id": "example-game", "version": "1.2.3"},
+        "producers": [{"name": "extractor", "version": "2.0.0"}],
+        "created_at": "2026-08-16T12:00:00Z",
+    },
+    {
+        "story_index": story_index,
+        "voice_manifest": voice_manifest,
+        "generated_audio": generated_audio_manifest,
+    },
+)
+
+# Loading repeats complete validation before returning absolute, resolved paths.
+pack = load_game_pack(pack_directory / "game-pack.json")
+story_index_path = pack.story_index.path
+voice_wav_paths = tuple(binding.path for binding in pack.voice_wavs)
+```
+
+The lower-level checksum helpers remain available when assembling other
+contracts. They bind files without embedding machine-local paths:
 
 ```python
 from vntts_artifacts.game_pack import (
