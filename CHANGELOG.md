@@ -1,9 +1,9 @@
 # Changelog
 
-## [0.6.0] - Unreleased
+## [0.6.0] - 2026-08-16
 
-Release candidate for the next immutable `vntts-artifacts` release. The package
-metadata is prepared, but no `v0.6.0` tag or published release exists yet.
+Immutable `vntts-artifacts` release containing the complete game-pack and
+voice-generation-queue contracts.
 
 ### Added
 
@@ -27,9 +27,7 @@ metadata is prepared, but no `v0.6.0` tag or published release exists yet.
   source-audio status/action pairs, summary counts, and untrusted provenance
   field types while preserving producer extensions.
 
-### Adoption status
+### Adoption
 
-- This release candidate is not an immutable release. VNTTS and
-  `reverse1999-extractor` must remain on their existing pins until `v0.6.0` is
-  tagged and published, after which both applications can be pinned to that
-  same release.
+- VNTTS and `reverse1999-extractor` should both pin this exact `v0.6.0` release
+  before relying on the new contracts across repository boundaries.

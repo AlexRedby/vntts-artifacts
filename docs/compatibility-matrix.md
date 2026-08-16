@@ -1,27 +1,25 @@
 # Contract compatibility matrix
 
 This matrix describes wire-format support in immutable `vntts-artifacts`
-releases and in the current unreleased repository state. “Producer” means the
-package can publish a validated artifact; “consumer” means it can parse and
-validate that artifact through a public API.
+releases. “Producer” means the package can publish a validated artifact;
+“consumer” means it can parse and validate that artifact through a public API.
 
 | Contract | Current wire version | First producer support | First consumer support | Current public APIs |
 | --- | ---: | --- | --- | --- |
 | Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | `write_story_index`, `load_story_index` |
 | Voice manifest | 2 | `v0.1.0` | `v0.1.0` | `write_voice_manifest`, `load_voice_manifest` |
 | Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | `write_generated_audio_manifest`, `GeneratedAudioIndex.load` |
-| Game pack (`vntts.game-pack`) | 1 | Planned `v0.6.0` (unpublished RC) | Planned `v0.6.0` (unpublished RC) | `write_game_pack`, `load_game_pack` |
-| Voice-generation queue (`vntts.voice-generation-queue`) | 1 | Planned `v0.6.0` (unpublished RC) | Planned `v0.6.0` (unpublished RC) | `write_voice_generation_queue`, `load_voice_generation_queue` |
+| Game pack (`vntts.game-pack`) | 1 | `v0.6.0` | `v0.6.0` | `write_game_pack`, `load_game_pack` |
+| Voice-generation queue (`vntts.voice-generation-queue`) | 1 | `v0.6.0` | `v0.6.0` | `write_voice_generation_queue`, `load_voice_generation_queue` |
 
 ## Release boundaries
 
 - `v0.5.0` contains deterministic game-pack checksum-binding helpers, but not
   the complete `vntts.game-pack` document reader or writer. It must not be
   treated as game-pack schema version 1 support.
-- Package metadata now identifies the next candidate as `0.6.0`, but the
-  complete game-pack and voice-generation-queue rows remain unreleased.
-  Applications must not claim immutable support until a `v0.6.0` tag and
-  release exist and the release-and-pinning TODO is completed.
+- `v0.6.0` is the first immutable release containing the complete game-pack and
+  voice-generation-queue readers and writers. Cross-project adoption still
+  requires both applications to pin this exact release.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
 - Story-index collection metadata, canonical source-audio fields, and their
@@ -44,5 +42,5 @@ validate that artifact through a public API.
 
 The synthetic compatibility flow in
 [`authoring-exchange.md`](authoring-exchange.md) verifies the current contracts
-together. It does not replace the immutable release and application pinning
-required for cross-project adoption.
+together. It does not replace the application pinning required for
+cross-project adoption.

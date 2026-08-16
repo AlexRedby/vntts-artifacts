@@ -210,6 +210,6 @@ python -m unittest discover -s tests
 Install `vntts-artifacts[audio]` when using `write_pcm16_wav`.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.
-Package metadata currently targets the unpublished `0.6.0` release candidate;
-see [`CHANGELOG.md`](CHANGELOG.md) for its durable release notes. Do not treat
-it as available until the immutable `v0.6.0` tag and release are published.
+`v0.6.0` is the immutable release containing the complete game-pack and
+voice-generation-queue contracts; see [`CHANGELOG.md`](CHANGELOG.md) for its
+durable release notes.
