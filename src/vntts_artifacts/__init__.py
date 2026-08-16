@@ -1,5 +1,7 @@
 """Versioned artifact contracts shared by VNTTS producers and consumers."""
 
+__version__ = "0.6.0"
+
 from vntts_artifacts.audio import PCM16_MONO_WAV_FORMAT
 from vntts_artifacts.game_pack import (
     GAME_PACK_SCHEMA,
@@ -39,6 +41,7 @@ from vntts_artifacts.voice_generation_queue import (
 from vntts_artifacts.voice_manifest import VOICE_MANIFEST_VERSION
 
 __all__ = [
+    "__version__",
     "GENERATED_AUDIO_SCHEMA",
     "GENERATED_AUDIO_SCHEMA_VERSION",
     "GAME_PACK_SCHEMA",
