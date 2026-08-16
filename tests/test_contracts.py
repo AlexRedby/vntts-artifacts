@@ -15,9 +15,13 @@ from vntts_artifacts.audio import (
 )
 from vntts_artifacts.file_integrity import sha256_file
 from vntts_artifacts.game_pack import (
+    GAME_PACK_SCHEMA,
+    GAME_PACK_SCHEMA_VERSION,
     GamePackError,
     create_game_pack_artifact_bindings,
+    load_game_pack,
     validate_game_pack_artifact_bindings,
+    write_game_pack,
 )
 from vntts_artifacts.generated_audio import (
     GeneratedAudioIndex,
@@ -49,6 +53,217 @@ class ProducerLine:
 
 
 class ContractTest(unittest.TestCase):
+    def _write_complete_game_pack_fixture(self, root):
+        story = root / "story.jsonl"
+        write_story_index(
+            story,
+            {"game": "Example"},
+            [
+                {
+                    "record_type": "line",
+                    "line_id": "game:1",
+                    "chapter": "1",
+                    "sequence": 1,
+                    "speaker": "Ada",
+                    "text": "Hello",
+                    "kind": "dialogue",
+                }
+            ],
+        )
+        voice_wav = root / "voices" / "ada.wav"
+        voice_wav.parent.mkdir()
+        voice_wav.write_bytes(b"voice WAV fixture")
+        voice_manifest = root / "voice-manifest.json"
+        write_voice_manifest(
+            voice_manifest,
+            {
+                "version": 2,
+                "voices": [
+                    {
+                        "character": "Ada",
+                        "speaker": "ada-v1",
+                        "references": ["voices/ada.wav"],
+                    }
+                ],
+            },
+        )
+        generated_wav = root / "generated" / "game-1.wav"
+        generated_wav.parent.mkdir()
+        generated_wav.write_bytes(b"generated WAV fixture")
+        generated_manifest = root / "generated-audio.json"
+        write_generated_audio_manifest(
+            generated_manifest,
+            {},
+            [
+                {
+                    "line_id": "game:1",
+                    "text_sha256": text_sha256("Hello"),
+                    "audio": "generated/game-1.wav",
+                    "audio_format": "wav-pcm16-mono",
+                    "audio_sha256": sha256_file(generated_wav),
+                    "sample_rate": 24_000,
+                    "sample_count": 10,
+                }
+            ],
+        )
+        manifest = root / "game-pack.json"
+        pack = write_game_pack(
+            manifest,
+            {
+                "game": {"id": "example", "version": "1.2.3"},
+                "producers": [{"name": "fixture-builder", "version": "2.0"}],
+                "created_at": "2026-08-16T12:00:00+03:00",
+                "org.example.provenance": {"source": "synthetic"},
+            },
+            {
+                "story_index": story,
+                "voice_manifest": voice_manifest,
+                "generated_audio": generated_manifest,
+            },
+        )
+        return pack, manifest, voice_wav, generated_wav
+
+    def test_game_pack_document_round_trip_returns_resolved_typed_paths(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            pack, manifest, voice_wav, generated_wav = self._write_complete_game_pack_fixture(root)
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+
+        self.assertEqual(document["schema"], GAME_PACK_SCHEMA)
+        self.assertEqual(document["schema_version"], GAME_PACK_SCHEMA_VERSION)
+        self.assertEqual(pack.game_id, "example")
+        self.assertEqual(pack.producers[0].name, "fixture-builder")
+        self.assertEqual(pack.story_index.path.name, "story.jsonl")
+        self.assertEqual(pack.voice_wavs[0].path, voice_wav.resolve())
+        self.assertEqual(pack.generated_wavs[0].path, generated_wav.resolve())
+        self.assertEqual(pack.extensions["org.example.provenance"]["source"], "synthetic")
+
+    def test_game_pack_generated_audio_component_is_optional(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            complete, _manifest, _voice_wav, _generated_wav = (
+                self._write_complete_game_pack_fixture(root)
+            )
+            pack = write_game_pack(
+                root / "minimal-game-pack.json",
+                {
+                    "game": {"id": "example", "version": "1.2.3"},
+                    "producers": [{"name": "fixture-builder", "version": "2.0"}],
+                    "created_at": "2026-08-16T12:00:00Z",
+                },
+                {
+                    "story_index": complete.story_index.path,
+                    "voice_manifest": complete.voice_manifest.path,
+                },
+            )
+
+        self.assertIsNone(pack.generated_audio)
+        self.assertEqual(pack.generated_wavs, ())
+
+    def test_game_pack_rejects_tampered_and_undeclared_referenced_files(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            voice_wav.write_bytes(b"tampered")
+            with self.assertRaisesRegex(GamePackError, "checksum does not match"):
+                load_game_pack(manifest)
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["components"]["voice_wavs"] = []
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "not declared"):
+                load_game_pack(manifest)
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["components"]["generated_audio"]["wavs"] = []
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "not declared"):
+                load_game_pack(manifest)
+
+    def test_game_pack_rejects_extra_declared_wav(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["components"]["voice_wavs"].append(
+                document["components"]["generated_audio"]["wavs"][0]
+            )
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "not referenced"):
+                load_game_pack(manifest)
+
+    def test_game_pack_rejects_unsafe_paths_unknown_core_fields_and_components(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            original = json.loads(manifest.read_text(encoding="utf-8"))
+            unsafe = json.loads(json.dumps(original))
+            unsafe["components"]["story_index"]["path"] = "../story.jsonl"
+            manifest.write_text(json.dumps(unsafe), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "safe relative path"):
+                load_game_pack(manifest)
+
+            absolute = json.loads(json.dumps(original))
+            absolute["components"]["story_index"]["path"] = str(root / "story.jsonl")
+            manifest.write_text(json.dumps(absolute), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "safe relative path"):
+                load_game_pack(manifest)
+
+            unknown_field = json.loads(json.dumps(original))
+            unknown_field["producer_notes"] = "not namespaced"
+            manifest.write_text(json.dumps(unknown_field), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "Unsupported game-pack field"):
+                load_game_pack(manifest)
+
+            unknown_component = json.loads(json.dumps(original))
+            unknown_component["components"]["subtitles"] = original["components"]["story_index"]
+            manifest.write_text(json.dumps(unknown_component), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "Unsupported game-pack component"):
+                load_game_pack(manifest)
+
+    def test_game_pack_rejects_invalid_metadata_and_missing_required_component(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            story = root / "story.jsonl"
+            story.write_text("unused", encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "missing required component"):
+                write_game_pack(
+                    root / "game-pack.json",
+                    {
+                        "game": {"id": "example", "version": "1"},
+                        "producers": [{"name": "test", "version": "1"}],
+                        "created_at": "2026-08-16T12:00:00",
+                    },
+                    {"story_index": story},
+                )
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["created_at"] = "2026-08-16T12:00:00"
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "timezone"):
+                load_game_pack(manifest)
+
     def test_game_pack_artifact_checksums_bind_and_validate_portable_paths(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -66,6 +281,7 @@ class ContractTest(unittest.TestCase):
                     "story_index": story,
                 },
             )
+            bindings["voice_manifest"]["producer_field"] = "preserved compatibility"
             validated = validate_game_pack_artifact_bindings(
                 root,
                 bindings,
@@ -167,6 +383,172 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(metadata["schema"], "vntts.story-index")
         self.assertEqual(lines[0].line_id, "game:1")
         self.assertEqual(raw_line["producer_field"], "x")
+
+    def test_story_index_loads_canonical_source_audio_metadata(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            write_story_index(
+                path,
+                {"game": "Example"},
+                [
+                    {
+                        "record_type": "line",
+                        "line_id": "game:1",
+                        "chapter": "1",
+                        "sequence": 1,
+                        "speaker": "Ada",
+                        "text": "Hello",
+                        "kind": "dialogue",
+                        "source_audio_status": "available",
+                        "source_audio_id": "voice-7",
+                    }
+                ],
+            )
+            _metadata, lines = load_story_index(path)
+
+        self.assertEqual(lines[0].source_audio_status, "available")
+        self.assertEqual(lines[0].source_audio_id, "voice-7")
+
+    def test_story_index_maps_legacy_extractor_audio_metadata(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            write_story_index(
+                path,
+                {"game": "Example"},
+                [
+                    {
+                        "record_type": "line",
+                        "line_id": "game:1",
+                        "chapter": "1",
+                        "sequence": 1,
+                        "speaker": "Ada",
+                        "text": "Hello",
+                        "kind": "dialogue",
+                        "audio_status": "installed",
+                        "source_voice_id": "voice-7",
+                    }
+                ],
+            )
+            _metadata, lines = load_story_index(path)
+
+        self.assertEqual(lines[0].source_audio_status, "available")
+        self.assertEqual(lines[0].source_audio_id, "voice-7")
+
+    def test_story_index_validates_and_preserves_collections(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            metadata, lines = load_story_index(
+                write_story_index(
+                    path,
+                    {
+                        "game": "Example",
+                        "collections": [
+                            {
+                                "collection_id": "main-story",
+                                "title": "Main Story",
+                                "kind": "story",
+                                "order": 1,
+                                "producer_field": "preserved",
+                            }
+                        ],
+                    },
+                    [
+                        {
+                            "record_type": "line",
+                            "line_id": "game:1",
+                            "chapter": "1",
+                            "sequence": 1,
+                            "speaker": "Ada",
+                            "text": "Hello",
+                            "collection_id": "main-story",
+                        }
+                    ],
+                )
+            )
+
+        self.assertEqual(lines[0].collection_id, "main-story")
+        self.assertEqual(metadata["collections"][0]["producer_field"], "preserved")
+
+    def test_story_index_rejects_unknown_or_duplicate_collection_ids(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            record = {
+                "record_type": "line",
+                "line_id": "game:1",
+                "chapter": "1",
+                "sequence": 1,
+                "speaker": "Ada",
+                "text": "Hello",
+                "collection_id": "missing",
+            }
+            with self.assertRaisesRegex(StoryIndexError, "not declared"):
+                write_story_index(
+                    path,
+                    {
+                        "collections": [
+                            {
+                                "collection_id": "main",
+                                "title": "Main",
+                                "kind": "story",
+                                "order": 1,
+                            }
+                        ]
+                    },
+                    [record],
+                )
+            with self.assertRaisesRegex(StoryIndexError, "not declared"):
+                write_story_index(path, {}, [record])
+            with self.assertRaisesRegex(StoryIndexError, "Duplicate"):
+                write_story_index(
+                    path,
+                    {
+                        "collections": [
+                            {
+                                "collection_id": "main",
+                                "title": "Main",
+                                "kind": "story",
+                                "order": 1,
+                            },
+                            {
+                                "collection_id": "main",
+                                "title": "Other",
+                                "kind": "story",
+                                "order": 2,
+                            },
+                        ]
+                    },
+                    [],
+                )
+            with self.assertRaisesRegex(StoryIndexError, "non-empty title"):
+                write_story_index(
+                    path,
+                    {
+                        "collections": [
+                            {
+                                "collection_id": "main",
+                                "title": "",
+                                "kind": "story",
+                                "order": 1,
+                            }
+                        ]
+                    },
+                    [],
+                )
+            with self.assertRaisesRegex(StoryIndexError, "order must be an integer"):
+                write_story_index(
+                    path,
+                    {
+                        "collections": [
+                            {
+                                "collection_id": "main",
+                                "title": "Main",
+                                "kind": "story",
+                                "order": True,
+                            }
+                        ]
+                    },
+                    [],
+                )
 
     def test_voice_manifest_upsert_is_readable_by_consumer(self):
         with TemporaryDirectory() as directory:
