@@ -55,6 +55,24 @@ identity is not available.
 Top-level and entry-level producer provenance fields are preserved as contract
 extensions.
 
+Generic authoring and review tools can preserve and inspect those extensions
+through the additive lossless document API:
+
+```python
+from vntts_artifacts import GeneratedAudioDocument, write_generated_audio_document
+
+document = GeneratedAudioDocument.load(generated_audio_path)
+record = document.find(line_id, text_sha256)
+provenance = None if record is None else record.synthesis_provenance_sha256
+copy = write_generated_audio_document(output_path, document.metadata, document.records)
+```
+
+`GeneratedAudioRecord` remains a subtype of `GeneratedAudioEntry`; existing
+`GeneratedAudioIndex` and `load_generated_audio_manifest` callers retain their
+original return types. See
+[`docs/generated-audio-authoring.md`](docs/generated-audio-authoring.md) for
+validation, extension, and release-boundary guidance.
+
 Story-index metadata may declare ordered authoring collections. Each collection
 requires `collection_id`, `title`, `kind`, and an integer `order`; line records
 may carry an optional `collection_id`, which must refer to a declared collection.

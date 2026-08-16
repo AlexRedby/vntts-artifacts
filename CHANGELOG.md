@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Lossless `GeneratedAudioDocument` and `GeneratedAudioRecord` APIs that retain
+  complete metadata, common synthesis provenance, and all per-entry producer
+  extensions while keeping generated-audio wire schema version 1 and the
+  existing lightweight index API unchanged.
+
 ## [0.6.1] - 2026-08-16
 
 Additive patch release for lossless, collection-driven story authoring. The
