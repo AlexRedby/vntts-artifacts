@@ -15,12 +15,21 @@ from vntts_artifacts.hashing import text_sha256
 
 VOICE_GENERATION_QUEUE_SCHEMA = "vntts.voice-generation-queue"
 VOICE_GENERATION_QUEUE_SCHEMA_VERSION = 1
+CANONICAL_VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS = MappingProxyType(
+    {
+        "absent": "generate",
+        "unavailable": "prefer_source_audio",
+    }
+)
+VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES = frozenset({"available"})
+VOICE_GENERATION_UNKNOWN_SOURCE_AUDIO_ACTIONS = frozenset({"manual_review", "resolve_audio"})
 VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS = MappingProxyType(
     {
         "no_audio": "generate",
         "configured_unavailable": "prefer_source_audio",
         "unresolved": "manual_review",
         "unchecked": "resolve_audio",
+        **CANONICAL_VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS,
     }
 )
 VOICE_GENERATION_ACTIONS = frozenset(VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS.values())
@@ -106,11 +115,24 @@ def expected_voice_generation_queue_id(line_id, text_hash):
     return f"{line_id}:{text_hash[:16]}"
 
 
-def voice_generation_action(source_audio_status):
-    """Return the v1 authoring action for one supported source-audio status."""
+def voice_generation_action(source_audio_status, *, unknown_action=None):
+    """Return the v1 action, ``None`` for available audio, or require unknown policy."""
     try:
         return VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS[source_audio_status]
     except (KeyError, TypeError) as error:
+        if (
+            isinstance(source_audio_status, str)
+            and source_audio_status in VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES
+        ):
+            return None
+        if source_audio_status == "unknown":
+            if unknown_action not in VOICE_GENERATION_UNKNOWN_SOURCE_AUDIO_ACTIONS:
+                allowed = ", ".join(sorted(VOICE_GENERATION_UNKNOWN_SOURCE_AUDIO_ACTIONS))
+                raise VoiceGenerationQueueError(
+                    "Canonical source_audio_status 'unknown' requires an explicit "
+                    f"unknown_action: {allowed}"
+                ) from error
+            return unknown_action
         raise VoiceGenerationQueueError(
             f"Unsupported source_audio_status: {source_audio_status!r}"
         ) from error
@@ -213,7 +235,15 @@ def _validate_item(record, index):
             f"Voice-generation item {index} source_audio_reason requires source_audio_status"
         )
     if source_status is not None:
-        expected_action = voice_generation_action(source_status)
+        if source_status in VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES:
+            raise VoiceGenerationQueueError(
+                f"Voice-generation item {index} source_audio_status {source_status!r} "
+                "must be excluded from the queue"
+            )
+        expected_action = voice_generation_action(
+            source_status,
+            unknown_action=action if source_status == "unknown" else None,
+        )
         if action != expected_action:
             raise VoiceGenerationQueueError(
                 f"Voice-generation item {index} action {action!r} does not match "

@@ -10,7 +10,7 @@ releases. “Producer” means the package can publish a validated artifact;
 | Voice manifest | 2 | `v0.1.0` | `v0.1.0` | `write_voice_manifest`, `load_voice_manifest` |
 | Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | `write_generated_audio_manifest`, `GeneratedAudioIndex.load` |
 | Game pack (`vntts.game-pack`) | 1 | `v0.6.0` | `v0.6.0` | `write_game_pack`, `load_game_pack` |
-| Voice-generation queue (`vntts.voice-generation-queue`) | 1 | `v0.6.0` | `v0.6.0` | `write_voice_generation_queue`, `load_voice_generation_queue` |
+| Voice-generation queue (`vntts.voice-generation-queue`) | 1 | `v0.6.0` | `v0.6.0` | Reader/writer since `v0.6.0`; canonical `voice_generation_action` policy since `v0.6.1` |
 
 ## Release boundaries
 
@@ -22,7 +22,9 @@ releases. “Producer” means the package can publish a validated artifact;
   exact release.
 - `v0.6.1` is the first release containing the lossless story-index
   `StoryIndexDocument`, `StoryIndexRecord`, and `StoryIndexCollection` APIs.
-  This is a package API addition without a story-index wire-version change.
+  It also adds canonical story-status queue policy while preserving legacy
+  extractor queue statuses. These are package API additions without a wire
+  version change.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
 - Story-index collection metadata, canonical source-audio fields, and their
@@ -40,6 +42,10 @@ releases. “Producer” means the package can publish a validated artifact;
 - Generated audio is reusable only for an exact `(line_id, text_sha256)` match.
 - Queue identity is stable only for the exact line ID and text revision:
   `queue_id = line_id + ":" + text_sha256[:16]`.
+- Legacy queue status/action pairs remain unchanged. Canonical story statuses
+  use `absent` -> `generate`, `unavailable` -> `prefer_source_audio`, and
+  exclude `available`; `unknown` must serialize either `resolve_audio` or
+  `manual_review` as an explicit producer policy.
 - A game-pack consumer trusts only resolved paths returned by `load_game_pack`
   after the complete checksum and nested-reference validation succeeds.
 

@@ -52,6 +52,40 @@ provenance such as portraits, source asset IDs, media IDs, story grouping, and
 provider-specific annotations. Unknown producer metadata is likewise preserved
 but remains producer-owned and is not assigned package-specific semantics.
 
+## Building a generation queue
+
+Queue builders can derive policy without reading producer-owned legacy fields:
+
+```python
+from vntts_artifacts import voice_generation_action
+
+for record in document.records_for_collection("main-story", speakable_only=True):
+    action = voice_generation_action(
+        record.source_audio_status,
+        unknown_action="resolve_audio",
+    )
+    if action is None:
+        continue  # Canonical `available` source audio is not queued.
+    item = {
+        "record_type": "generation_item",
+        "queue_id": f"{record.line_id}:{record.text_sha256[:16]}",
+        "line_id": record.line_id,
+        "text_sha256": record.text_sha256,
+        "text": record.text,
+        "speaker": record.speaker,
+        "voice_character": record.voice_character,
+        "source_audio_status": record.source_audio_status,
+        "source_audio_reason": record.source_audio_reason or "not_reported",
+        "action": action,
+    }
+```
+
+Canonical `unknown` intentionally has no implicit action: schema-v1 legacy
+`unchecked` and `unresolved` both normalize to `unknown`, but require different
+actions. A producer must choose `resolve_audio` or `manual_review`; the queue
+stores and validates that choice. Legacy queue statuses and actions remain
+accepted unchanged.
+
 ## Compatibility and release boundary
 
 The wire schema remains `vntts.story-index` version 1. Existing v1 readers can

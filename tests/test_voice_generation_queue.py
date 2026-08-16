@@ -4,7 +4,13 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from vntts_artifacts import (
+    CANONICAL_VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS,
+    VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES,
+    VOICE_GENERATION_UNKNOWN_SOURCE_AUDIO_ACTIONS,
+)
 from vntts_artifacts.voice_generation_queue import (
+    VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS,
     VOICE_GENERATION_QUEUE_SCHEMA,
     VOICE_GENERATION_QUEUE_SCHEMA_VERSION,
     VoiceGenerationQueue,
@@ -74,6 +80,7 @@ class VoiceGenerationQueueTest(unittest.TestCase):
             path = Path(directory) / "queue.jsonl"
             write_voice_generation_queue(path, metadata, [item])
             loaded_metadata, items = load_voice_generation_queue(path)
+            original_bytes = path.read_bytes()
             raw = [json.loads(row) for row in path.read_text(encoding="utf-8").splitlines()]
 
             rewritten = Path(directory) / "rewritten.jsonl"
@@ -81,9 +88,11 @@ class VoiceGenerationQueueTest(unittest.TestCase):
             rewritten_raw = [
                 json.loads(row) for row in rewritten.read_text(encoding="utf-8").splitlines()
             ]
+            rewritten_bytes = rewritten.read_bytes()
 
         self.assertEqual(raw, [metadata, item])
         self.assertEqual(rewritten_raw, raw)
+        self.assertEqual(rewritten_bytes, original_bytes)
         self.assertEqual(items[0].queue_id, item["queue_id"])
         self.assertEqual(items[0].source_audio_status, "no_audio")
         self.assertEqual(items[0].document["producer_extension"], {"preserved": True})
@@ -137,6 +146,91 @@ class VoiceGenerationQueueTest(unittest.TestCase):
         )
         self.assertEqual(voice_generation_action("unresolved"), "manual_review")
         self.assertEqual(voice_generation_action("unchecked"), "resolve_audio")
+        self.assertEqual(
+            {
+                key: VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS[key]
+                for key in (
+                    "no_audio",
+                    "configured_unavailable",
+                    "unresolved",
+                    "unchecked",
+                )
+            },
+            {
+                "no_audio": "generate",
+                "configured_unavailable": "prefer_source_audio",
+                "unresolved": "manual_review",
+                "unchecked": "resolve_audio",
+            },
+        )
+
+    def test_canonical_story_status_policy_is_explicit_and_queue_validated(self):
+        self.assertEqual(
+            dict(CANONICAL_VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS),
+            {"absent": "generate", "unavailable": "prefer_source_audio"},
+        )
+        self.assertEqual(VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES, {"available"})
+        self.assertEqual(
+            VOICE_GENERATION_UNKNOWN_SOURCE_AUDIO_ACTIONS,
+            {"manual_review", "resolve_audio"},
+        )
+        self.assertEqual(voice_generation_action("absent"), "generate")
+        self.assertEqual(voice_generation_action("unavailable"), "prefer_source_audio")
+        self.assertIsNone(voice_generation_action("available"))
+        self.assertEqual(
+            voice_generation_action("unknown", unknown_action="resolve_audio"),
+            "resolve_audio",
+        )
+        self.assertEqual(
+            voice_generation_action("unknown", unknown_action="manual_review"),
+            "manual_review",
+        )
+        with self.assertRaisesRegex(VoiceGenerationQueueError, "explicit unknown_action"):
+            voice_generation_action("unknown")
+        with self.assertRaisesRegex(VoiceGenerationQueueError, "explicit unknown_action"):
+            voice_generation_action("unknown", unknown_action="generate")
+
+        cases = (
+            ("absent", "generate"),
+            ("unavailable", "prefer_source_audio"),
+            ("unknown", "resolve_audio"),
+            ("unknown", "manual_review"),
+        )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index, (status, action) in enumerate(cases):
+                with self.subTest(status=status, action=action):
+                    item = queue_item(
+                        line_id=f"canonical:{index}",
+                        source_audio_status=status,
+                        action=action,
+                    )
+                    metadata = queue_metadata(
+                        source_audio_status_counts={status: 1},
+                        action_counts={action: 1},
+                    )
+                    _metadata, items = load_voice_generation_queue(
+                        write_voice_generation_queue(
+                            root / f"{index}.jsonl",
+                            metadata,
+                            [item],
+                        )
+                    )
+                    self.assertEqual(items[0].source_audio_status, status)
+                    self.assertEqual(items[0].action, action)
+
+            with self.assertRaisesRegex(VoiceGenerationQueueError, "must be excluded"):
+                write_voice_generation_queue(
+                    root / "available.jsonl",
+                    queue_metadata(source_audio_status_counts={"available": 1}),
+                    [queue_item(source_audio_status="available")],
+                )
+            with self.assertRaisesRegex(VoiceGenerationQueueError, "explicit unknown_action"):
+                write_voice_generation_queue(
+                    root / "unsafe-unknown.jsonl",
+                    queue_metadata(source_audio_status_counts={"unknown": 1}),
+                    [queue_item(source_audio_status="unknown")],
+                )
 
     def test_rejects_text_hash_and_queue_identity_drift(self):
         with TemporaryDirectory() as directory:

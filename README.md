@@ -96,7 +96,7 @@ reader validates the exact UTF-8 text SHA-256 and the stable queue identity:
 queue_id = line_id + ":" + text_sha256[:16]
 ```
 
-When `source_audio_status` is present, its action is fixed:
+Legacy extractor queue statuses retain their exact version 1 actions:
 
 | Source-audio status | Action |
 | --- | --- |
@@ -104,6 +104,28 @@ When `source_audio_status` is present, its action is fixed:
 | `configured_unavailable` | `prefer_source_audio` |
 | `unresolved` | `manual_review` |
 | `unchecked` | `resolve_audio` |
+
+Generic builders consuming `StoryIndexRecord` use canonical policy:
+
+| Canonical status | Queue policy |
+| --- | --- |
+| `absent` | `generate` |
+| `unavailable` | `prefer_source_audio` |
+| `available` | Exclude the line; `voice_generation_action` returns `None` |
+| `unknown` | Explicitly choose `resolve_audio` or `manual_review` |
+
+```python
+action = voice_generation_action(
+    record.source_audio_status,
+    unknown_action="resolve_audio",
+)
+if action is None:
+    continue
+```
+
+Canonical `unknown` has no package default because legacy `unchecked` and
+`unresolved` both normalize to it but require different authoring actions. The
+chosen action is stored in the queue and validated by the reader.
 
 The reader also rejects duplicate line or queue IDs, mismatched summary counts,
 invalid hashes and timestamps, unsupported actions, non-pending embedded states,
@@ -116,6 +138,7 @@ preserved verbatim.
 from vntts_artifacts import (
     VoiceGenerationQueue,
     load_voice_generation_queue,
+    voice_generation_action,
     write_voice_generation_queue,
 )
 

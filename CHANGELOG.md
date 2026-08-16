@@ -11,6 +11,9 @@ story-index wire contract remains schema version 1.
   `StoryIndexCollection` APIs for collection-driven authoring. They preserve
   producer metadata and complete line records while validating common voice,
   context, and source-audio fields without changing story-index wire schema 1.
+- Canonical story source-audio policy for queue builders: absent audio is
+  generated, unavailable audio preserves source preference, available audio is
+  excluded, and unknown audio requires an explicit resolve-or-review action.
 
 ## [0.6.0] - 2026-08-16
 
