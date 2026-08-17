@@ -6,6 +6,7 @@ import sys
 import wave
 from array import array
 from dataclasses import dataclass
+from operator import index
 from pathlib import Path
 
 from vntts_artifacts.atomic_io import atomic_output_path
@@ -72,17 +73,33 @@ def write_pcm16_wav(path, samples, sample_rate):
     try:
         import numpy as np
     except ImportError as error:
-        raise RuntimeError(
-            "write_pcm16_wav requires the vntts-artifacts[audio] extra"
-        ) from error
+        raise RuntimeError("write_pcm16_wav requires the vntts-artifacts[audio] extra") from error
+
+    if isinstance(sample_rate, bool):
+        raise Pcm16MonoWavError("sample rate must be a positive integer")
+    try:
+        validated_sample_rate = index(sample_rate)
+    except TypeError as error:
+        raise Pcm16MonoWavError("sample rate must be a positive integer") from error
+    if not 1 <= validated_sample_rate <= 0xFFFFFFFF:
+        raise Pcm16MonoWavError("sample rate must be a positive 32-bit integer")
+
+    try:
+        values = np.asarray(samples)
+    except (TypeError, ValueError) as error:
+        raise Pcm16MonoWavError("samples must be a one-dimensional float array") from error
+    if values.ndim != 1 or not np.issubdtype(values.dtype, np.floating):
+        raise Pcm16MonoWavError("samples must be a one-dimensional float array")
+    if not np.isfinite(values).all():
+        raise Pcm16MonoWavError("samples must contain only finite values")
 
     destination = Path(path)
-    values = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
-    pcm = np.round(values * 32767.0).astype("<i2")
+    clipped = np.clip(values, -1.0, 1.0).astype(np.float32, copy=False)
+    pcm = np.round(clipped * 32767.0).astype("<i2")
     with atomic_output_path(destination) as temporary:
         with wave.open(str(temporary), "wb") as output:
             output.setnchannels(1)
             output.setsampwidth(2)
-            output.setframerate(int(sample_rate))
+            output.setframerate(validated_sample_rate)
             output.writeframes(pcm.tobytes())
     return destination

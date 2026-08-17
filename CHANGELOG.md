@@ -9,6 +9,12 @@
   extensions while keeping generated-audio wire schema version 1 and the
   existing lightweight index API unchanged.
 
+### Validation and safety
+
+- The shared mono PCM16 WAV writer now rejects multi-dimensional audio,
+  non-finite samples, non-float sample arrays, and invalid sample rates instead
+  of silently flattening channels or coercing malformed inputs.
+
 ## [0.6.1] - 2026-08-16
 
 Additive patch release for lossless, collection-driven story authoring. The

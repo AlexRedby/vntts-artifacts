@@ -367,6 +367,53 @@ class ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(Pcm16MonoWavError, "mono 16-bit"):
                 probe_pcm16_mono_wav(path)
 
+    def test_pcm16_wav_writer_rejects_multichannel_shapes(self):
+        import numpy as np
+
+        invalid_samples = {
+            "stereo-channels-first": np.zeros((2, 8), dtype=np.float32),
+            "frames-by-channels": np.zeros((8, 2), dtype=np.float32),
+        }
+        with TemporaryDirectory() as directory:
+            for name, samples in invalid_samples.items():
+                with self.subTest(name=name):
+                    path = Path(directory) / f"{name}.wav"
+                    with self.assertRaisesRegex(Pcm16MonoWavError, "one-dimensional"):
+                        write_pcm16_wav(path, samples, 24_000)
+                    self.assertFalse(path.exists())
+
+    def test_pcm16_wav_writer_rejects_nonfinite_samples(self):
+        import numpy as np
+
+        with TemporaryDirectory() as directory:
+            for value in (float("nan"), float("inf"), float("-inf")):
+                with self.subTest(value=value):
+                    path = Path(directory) / "nonfinite.wav"
+                    with self.assertRaisesRegex(Pcm16MonoWavError, "finite"):
+                        write_pcm16_wav(path, np.array([0.0, value], dtype=np.float32), 24_000)
+                    self.assertFalse(path.exists())
+
+    def test_pcm16_wav_writer_rejects_non_float_samples(self):
+        import numpy as np
+
+        with TemporaryDirectory() as directory:
+            for dtype in (np.int16, np.bool_):
+                with self.subTest(dtype=dtype):
+                    path = Path(directory) / "non-float.wav"
+                    with self.assertRaisesRegex(Pcm16MonoWavError, "float array"):
+                        write_pcm16_wav(path, np.array([0, 1], dtype=dtype), 24_000)
+                    self.assertFalse(path.exists())
+
+    def test_pcm16_wav_writer_rejects_invalid_sample_rates(self):
+        invalid_sample_rates = (0, -1, True, False, 24_000.0, "24000", 2**32)
+        with TemporaryDirectory() as directory:
+            for sample_rate in invalid_sample_rates:
+                with self.subTest(sample_rate=sample_rate):
+                    path = Path(directory) / "invalid-rate.wav"
+                    with self.assertRaisesRegex(Pcm16MonoWavError, "sample rate"):
+                        write_pcm16_wav(path, [0.0], sample_rate)
+                    self.assertFalse(path.exists())
+
     def test_text_hash_is_shared_across_contracts(self):
         self.assertEqual(text_sha256("Hello"), shared_text_sha256("Hello"))
 

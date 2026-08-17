@@ -273,7 +273,10 @@ validated = validate_game_pack_artifact_bindings(
 python -m unittest discover -s tests
 ```
 
-Install `vntts-artifacts[audio]` when using `write_pcm16_wav`.
+Install `vntts-artifacts[audio]` when using `write_pcm16_wav`. The writer is a
+strict mono boundary: samples must be a one-dimensional finite float sequence,
+and the sample rate must be a positive non-boolean integer. Callers rendering
+multiple channels must downmix explicitly before invoking it.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.
 `v0.6.1` is the additive release containing the lossless story-index document
