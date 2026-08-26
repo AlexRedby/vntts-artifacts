@@ -279,9 +279,10 @@ and the sample rate must be a positive non-boolean integer. Callers rendering
 multiple channels must downmix explicitly before invoking it.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.
-`v0.6.1` is the additive release containing the lossless story-index document
-API. `v0.6.0` remains the first release containing the complete game-pack and
-voice-generation-queue contracts. See [`CHANGELOG.md`](CHANGELOG.md) for
-durable release notes and
+`v0.6.2` adds the lossless generated-audio document API, strict mono writer
+validation, and contained standalone voice/generated reference paths. `v0.6.1`
+is the first release containing the lossless story-index document API, while
+`v0.6.0` remains the first complete game-pack and voice-generation-queue
+release. See [`CHANGELOG.md`](CHANGELOG.md) for durable release notes and
 [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) for exact API
 boundaries and existing consumer adoption evidence.

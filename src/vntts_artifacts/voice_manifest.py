@@ -3,7 +3,7 @@
 import json
 import unicodedata
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from vntts_artifacts.atomic_io import atomic_write_json
 
@@ -23,12 +23,19 @@ class VoiceManifestEntry:
 
 
 def load_voice_manifest(path, *, allow_legacy=True):
-    path = Path(path).expanduser().resolve()
+    requested = Path(path).expanduser()
+    if requested.is_symlink():
+        raise VoiceManifestError("Voice manifest cannot be a symlink")
+    path = requested.resolve()
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise VoiceManifestError(f"Unable to read voice manifest {path}: {error}") from error
-    return manifest, validate_voice_manifest(manifest, allow_legacy=allow_legacy)
+    entries = validate_voice_manifest(manifest, allow_legacy=allow_legacy)
+    for index, entry in enumerate(entries):
+        for reference in entry.references:
+            _validate_loaded_reference(path, reference, index)
+    return manifest, entries
 
 
 def validate_voice_manifest(manifest, *, allow_legacy=True):
@@ -54,17 +61,12 @@ def validate_voice_manifest(manifest, *, allow_legacy=True):
         legacy_reference = entry.get("reference")
         references = entry.get("references")
         if legacy_reference is not None and references is not None:
-            raise VoiceManifestError(
-                f"Voice entry {index} cannot contain reference and references"
-            )
+            raise VoiceManifestError(f"Voice entry {index} cannot contain reference and references")
         if references is None:
             references = [] if legacy_reference is None else [legacy_reference]
-        if not isinstance(references, list) or not all(
-            isinstance(reference, str) and reference.strip() for reference in references
-        ):
-            raise VoiceManifestError(
-                f"Voice entry {index} references must be non-empty strings"
-            )
+        if not isinstance(references, list):
+            raise VoiceManifestError(f"Voice entry {index} references must be non-empty strings")
+        references = [_safe_reference_text(reference, index) for reference in references]
         aliases = entry.get("aliases", [])
         if not isinstance(aliases, list) or not all(
             isinstance(alias, str) and alias.strip() for alias in aliases
@@ -127,3 +129,32 @@ def _required_entry_text(entry, field, index, label):
     if not isinstance(value, str) or not value.strip():
         raise VoiceManifestError(f"Voice entry {index} requires a {label}")
     return value.strip()
+
+
+def _safe_reference_text(reference, index):
+    if not isinstance(reference, str) or not reference.strip():
+        raise VoiceManifestError(f"Voice entry {index} references must be non-empty strings")
+    value = reference.strip()
+    if "\\" in value:
+        raise VoiceManifestError(f"Voice entry {index} reference must use POSIX separators")
+    relative = PurePosixPath(value)
+    if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        raise VoiceManifestError(f"Voice entry {index} reference must be a safe relative path")
+    return value
+
+
+def _validate_loaded_reference(manifest_path, reference, index):
+    root = Path(manifest_path).parent.resolve()
+    relative = PurePosixPath(reference)
+    candidate = root.joinpath(*relative.parts)
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            raise VoiceManifestError(f"Voice entry {index} reference must not use symlinks")
+    try:
+        candidate.resolve().relative_to(root)
+    except ValueError as error:
+        raise VoiceManifestError(
+            f"Voice entry {index} reference must stay within the manifest directory"
+        ) from error

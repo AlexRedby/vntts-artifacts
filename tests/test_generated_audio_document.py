@@ -92,9 +92,7 @@ class GeneratedAudioDocumentTest(unittest.TestCase):
             audio = root / "line.wav"
             audio.write_bytes(b"original")
             record = generated_record(audio)
-            document = write_generated_audio_document(
-                root / "generated.json", metadata(), [record]
-            )
+            document = write_generated_audio_document(root / "generated.json", metadata(), [record])
             self.assertEqual(
                 document.find(record["line_id"], record["text_sha256"]).provider,
                 "synthetic",
@@ -103,9 +101,7 @@ class GeneratedAudioDocumentTest(unittest.TestCase):
             audio.write_bytes(b"modified")
             self.assertIsNone(document.find(record["line_id"], record["text_sha256"]))
             self.assertIsNotNone(
-                document.find(
-                    record["line_id"], record["text_sha256"], verify_file=False
-                )
+                document.find(record["line_id"], record["text_sha256"], verify_file=False)
             )
 
     def test_typed_records_republish_without_extension_loss(self):
@@ -228,9 +224,7 @@ class GeneratedAudioDocumentTest(unittest.TestCase):
             path = manifest_root / "generated.json"
 
             with self.assertRaisesRegex(GeneratedAudioManifestError, "must stay within"):
-                write_generated_audio_document(
-                    path, metadata(), [generated_record(link)]
-                )
+                write_generated_audio_document(path, metadata(), [generated_record(link)])
             self.assertFalse(path.exists())
 
 

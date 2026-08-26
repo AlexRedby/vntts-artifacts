@@ -54,6 +54,6 @@ Existing APIs remain intentionally unchanged:
   also accepts a lossless `GeneratedAudioRecord` without flattening its internal
   helper fields into the wire record.
 
-Because these are new Python symbols, consumers need the next immutable package
-release before importing them. Older consumers remain compatible with wire
-schema version 1 and may continue ignoring optional producer extensions.
+These Python symbols first ship in immutable package release `v0.6.2`. Older
+consumers remain compatible with wire schema version 1 and may continue
+ignoring optional producer extensions.

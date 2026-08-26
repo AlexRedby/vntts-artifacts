@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## [0.6.2] - 2026-08-26
+
+Additive patch release for lossless generated-audio authoring and stricter
+local-artifact containment. Existing wire schema versions remain unchanged.
 
 ### Added
 
@@ -14,6 +17,9 @@
 - The shared mono PCM16 WAV writer now rejects multi-dimensional audio,
   non-finite samples, non-float sample arrays, and invalid sample rates instead
   of silently flattening channels or coercing malformed inputs.
+- Standalone voice and generated-audio manifests now require safe POSIX-relative
+  artifact paths and reject symlinked references before exposing local files to
+  consumers.
 
 ## [0.6.1] - 2026-08-16
 

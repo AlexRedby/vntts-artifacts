@@ -12,10 +12,10 @@ class ReleaseMetadataTest(unittest.TestCase):
         package_version = project["project"]["version"]
         changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
 
-        self.assertEqual(package_version, "0.6.1")
+        self.assertEqual(package_version, "0.6.2")
         self.assertEqual(vntts_artifacts.__version__, package_version)
-        self.assertIn("## Unreleased", changelog)
-        self.assertIn(f"## [{package_version}] - 2026-08-16", changelog)
+        self.assertNotIn("Unreleased", changelog)
+        self.assertIn(f"## [{package_version}] - 2026-08-26", changelog)
 
 
 if __name__ == "__main__":

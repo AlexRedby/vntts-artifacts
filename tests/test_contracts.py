@@ -630,6 +630,51 @@ class ContractTest(unittest.TestCase):
                 },
             )
 
+    def test_voice_manifest_rejects_escaping_and_symlinked_references(self):
+        for reference in ("/tmp/outside.wav", "../outside.wav", "audio\\clip.wav"):
+            with self.subTest(reference=reference):
+                with self.assertRaisesRegex(VoiceManifestError, "reference"):
+                    write_voice_manifest(
+                        Path("unused.json"),
+                        {
+                            "version": 2,
+                            "voices": [
+                                {
+                                    "character": "Ada",
+                                    "speaker": "ada-v1",
+                                    "references": [reference],
+                                }
+                            ],
+                        },
+                    )
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            outside = root / "outside.wav"
+            outside.write_bytes(b"outside")
+            manifest_root = root / "manifest"
+            manifest_root.mkdir()
+            (manifest_root / "linked.wav").symlink_to(outside)
+            manifest = manifest_root / "voices.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "voices": [
+                            {
+                                "character": "Ada",
+                                "speaker": "ada-v1",
+                                "references": ["linked.wav"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(VoiceManifestError, "symlinks"):
+                load_voice_manifest(manifest)
+
     def test_integrity_and_slug_helpers_are_stable(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "value"
@@ -694,6 +739,41 @@ class ContractTest(unittest.TestCase):
             safe_entry = {**entry, "audio": "audio.wav"}
             with self.assertRaisesRegex(GeneratedAudioManifestError, "Duplicate"):
                 write_generated_audio_manifest(manifest, {}, [safe_entry, safe_entry])
+
+    def test_legacy_generated_audio_index_rejects_symlinked_audio(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            external = root / "outside.wav"
+            external.write_bytes(b"audio")
+            manifest_root = root / "manifest"
+            manifest_root.mkdir()
+            link = manifest_root / "linked.wav"
+            link.symlink_to(external)
+            manifest = manifest_root / "generated-audio.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": "vntts.generated-audio",
+                        "schema_version": 1,
+                        "entry_count": 1,
+                        "entries": [
+                            {
+                                "line_id": "game:1",
+                                "text_sha256": text_sha256("Hello"),
+                                "audio": "linked.wav",
+                                "audio_format": "wav-pcm16-mono",
+                                "audio_sha256": sha256_file(external),
+                                "sample_rate": 24_000,
+                                "sample_count": 1,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(GeneratedAudioManifestError, "without symlinks"):
+                GeneratedAudioIndex.load(manifest)
 
     def test_generated_audio_lookup_rejects_modified_file(self):
         with TemporaryDirectory() as directory:

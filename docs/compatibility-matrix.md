@@ -8,7 +8,7 @@ releases. “Producer” means the package can publish a validated artifact;
 | --- | ---: | --- | --- | --- |
 | Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | Legacy line APIs since `v0.1.0`; `StoryIndexDocument`, `load_story_index_document`, and `write_story_index_document` since `v0.6.1` |
 | Voice manifest | 2 | `v0.1.0` | `v0.1.0` | `write_voice_manifest`, `load_voice_manifest` |
-| Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | Legacy manifest/index APIs since `v0.2.0`; lossless `GeneratedAudioDocument`, `GeneratedAudioRecord`, `load_generated_audio_document`, and `write_generated_audio_document` are currently unreleased |
+| Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | Legacy manifest/index APIs since `v0.2.0`; lossless `GeneratedAudioDocument`, `GeneratedAudioRecord`, `load_generated_audio_document`, and `write_generated_audio_document` since `v0.6.2` |
 | Game pack (`vntts.game-pack`) | 1 | `v0.6.0` | `v0.6.0` | `write_game_pack`, `load_game_pack` |
 | Voice-generation queue (`vntts.voice-generation-queue`) | 1 | `v0.6.0` | `v0.6.0` | Reader/writer since `v0.6.0`; canonical `voice_generation_action` policy since `v0.6.1` |
 
@@ -25,10 +25,15 @@ releases. “Producer” means the package can publish a validated artifact;
   It also adds canonical story-status queue policy while preserving legacy
   extractor queue statuses. These are package API additions without a wire
   version change.
+- `v0.6.2` is the first release containing the lossless generated-audio
+  document/record APIs. It also rejects absolute, traversal, backslash and
+  symlinked standalone voice/generated artifact references and makes the shared
+  PCM writer a strict finite one-dimensional mono boundary. Wire versions stay
+  unchanged.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
-  The unreleased lossless document/record APIs preserve complete provenance and
-  producer extensions without changing that wire version.
+  The lossless document/record APIs added in `v0.6.2` preserve complete
+  provenance and producer extensions without changing that wire version.
 - Story-index collection metadata, canonical source-audio fields, and their
   legacy extractor mappings were added without changing story-index schema
   version 1 because the format preserves producer extensions and older readers
@@ -61,12 +66,12 @@ remain wire-compatible and may continue ignoring producer extensions.
 
 ## Additive generated-audio APIs
 
-The unreleased `GeneratedAudioDocument` and `GeneratedAudioRecord` APIs retain
+The `GeneratedAudioDocument` and `GeneratedAudioRecord` APIs retain
 complete top-level metadata and per-entry extensions, including common
 generation provenance. Existing `GeneratedAudioIndex` and
-`load_generated_audio_manifest` return shapes remain unchanged. A consumer must
-wait for the next immutable package release before importing the new symbols;
-schema-v1 files remain compatible with every release listed in the main table.
+`load_generated_audio_manifest` return shapes remain unchanged. The symbols
+first ship in `v0.6.2`; schema-v1 files remain compatible with every release
+listed in the main table.
 
 ## Adoption evidence
 

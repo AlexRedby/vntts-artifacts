@@ -338,9 +338,7 @@ def _parse_generated_audio_record(entry, record, index):
     review_status = _optional_record_text(record, "review_status", index)
     generation_profile = _optional_record_text(record, "generation_profile", index)
     prompt_applied = _optional_boolean(record, "prompt_applied", index)
-    queue_annotations_sha256 = _optional_record_hash(
-        record, "queue_annotations_sha256", index
-    )
+    queue_annotations_sha256 = _optional_record_hash(record, "queue_annotations_sha256", index)
     synthesis_provenance_sha256 = _optional_record_hash(
         record, "synthesis_provenance_sha256", index
     )
@@ -382,9 +380,7 @@ def _verify_entries(entries):
                 f"Unable to read generated audio {entry.audio}: {error}"
             ) from error
         if digest != entry.audio_sha256:
-            raise GeneratedAudioManifestError(
-                f"Generated audio hash does not match: {entry.audio}"
-            )
+            raise GeneratedAudioManifestError(f"Generated audio hash does not match: {entry.audio}")
 
 
 def _audio_path(manifest_path, value, index):
@@ -400,7 +396,24 @@ def _audio_path(manifest_path, value, index):
         raise GeneratedAudioManifestError(
             f"Generated-audio entry {index} audio must be a safe relative path"
         )
-    return (Path(manifest_path).parent / Path(*relative.parts)).resolve()
+    root = Path(manifest_path).parent.resolve()
+    candidate = root.joinpath(*relative.parts)
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            raise GeneratedAudioManifestError(
+                f"Generated-audio entry {index} audio must stay within the "
+                "manifest directory without symlinks"
+            )
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as error:
+        raise GeneratedAudioManifestError(
+            f"Generated-audio entry {index} audio must stay within the manifest directory"
+        ) from error
+    return resolved
 
 
 def _required_text(record, field, index):
@@ -481,9 +494,7 @@ def _optional_record_hash(record, field, index):
 
 def _validate_optional_hash(value, label):
     if not isinstance(value, str) or _SHA256_PATTERN.fullmatch(value.strip()) is None:
-        raise GeneratedAudioManifestError(
-            f"Generated-audio {label} must be lowercase SHA-256"
-        )
+        raise GeneratedAudioManifestError(f"Generated-audio {label} must be lowercase SHA-256")
     return value.strip()
 
 
