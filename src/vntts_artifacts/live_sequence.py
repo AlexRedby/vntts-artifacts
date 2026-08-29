@@ -330,7 +330,7 @@ def _reject_unguarded_automatic_cycles(chapter, events):
         if event_id in visited:
             return
         event = events[event_id]
-        if event.control != "automatic":
+        if event.control not in {"automatic", "passive"}:
             visited.add(event_id)
             return
         visiting.add(event_id)

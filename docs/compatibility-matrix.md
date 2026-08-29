@@ -35,6 +35,8 @@ releases. “Producer” means the package can publish a validated artifact;
   version 2. The new game-pack version is necessary because v0.6.x schema-v1
   readers correctly reject unknown core components. Its loader still accepts
   immutable schema-v1 packs; its writer emits schema v2.
+- `v0.7.1` preserves those wire versions and rejects unguarded automatic cycles
+  that cross runtime-transparent passive transitions.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
   The lossless document/record APIs added in `v0.6.2` preserve complete

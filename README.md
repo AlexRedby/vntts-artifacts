@@ -308,6 +308,7 @@ and the sample rate must be a positive non-boolean integer. Callers rendering
 multiple channels must downmix explicitly before invoking it.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.
+`v0.7.1` makes passive transitions part of unguarded automatic-cycle detection.
 `v0.7.0` adds the live-sequence contract and game-pack schema v2 while retaining
 schema-v1 read compatibility. `v0.6.2` adds the lossless generated-audio
 document API, strict mono writer validation, and contained standalone

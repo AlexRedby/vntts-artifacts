@@ -132,3 +132,19 @@ class LiveSequencePlanTest(unittest.TestCase):
 
             with self.assertRaisesRegex(LiveSequencePlanError, "automatic cycle"):
                 write_live_sequence_plan(root / "plan.json", document, story)
+
+    def test_passive_transition_cannot_hide_an_automatic_cycle(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            story = root / "story.jsonl"
+            write_story(story)
+            document = plan_input()
+            middle = document["chapters"][0]["events"][1]
+            middle["kind"] = "transition"
+            middle["control"] = "passive"
+            final = document["chapters"][0]["events"][2]
+            final["control"] = "automatic"
+            final["successors"] = ["event-1"]
+
+            with self.assertRaisesRegex(LiveSequencePlanError, "automatic cycle"):
+                write_live_sequence_plan(root / "plan.json", document, story)

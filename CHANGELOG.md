@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1] - 2026-08-29
+
+Safety patch for live-sequence graph validation. Wire schemas and public APIs
+remain unchanged.
+
+### Fixed
+
+- Unguarded-cycle detection now traverses runtime-transparent `passive`
+  transitions as well as `automatic` events. A producer can no longer publish
+  an automatic loop hidden behind passive transitions that require no user
+  action.
+
 ## [0.7.0] - 2026-08-29
 
 New sequence-first runtime contract and an intentionally versioned game-pack
