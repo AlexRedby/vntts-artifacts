@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0] - 2026-08-29
+
+New sequence-first runtime contract and an intentionally versioned game-pack
+component boundary.
+
+### Added
+
+- `vntts.live-sequence-plan` schema version 1 reader and writer with exact
+  story-index SHA-256 binding, source-extract provenance, typed event graphs,
+  explicit chapter entries and strict speech-line identity validation.
+- Optional `live_sequence_plan` component in `vntts.game-pack` schema version
+  2. Its artifact binding and nested story-index relationship are both checked
+  before a consumer receives the path.
+
+### Compatibility and safety
+
+- The game-pack loader accepts immutable schema versions 1 and 2. Schema v1
+  keeps its original component set and rejects a v2 sequence component; the
+  writer emits only schema v2.
+- Sequence validation rejects missing or cross-chapter successors, unreachable
+  events, duplicate line bindings, unsupported controls, invalid terminal or
+  manual boundaries and unguarded automatic cycles. Candidate plans are fully
+  validated before atomic publication.
+
 ## [0.6.2] - 2026-08-26
 
 Additive patch release for lossless generated-audio authoring and stricter

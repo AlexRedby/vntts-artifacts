@@ -30,6 +30,7 @@ from vntts_artifacts.generated_audio import (
     write_generated_audio_manifest,
 )
 from vntts_artifacts.hashing import text_sha256 as shared_text_sha256
+from vntts_artifacts.live_sequence import write_live_sequence_plan
 from vntts_artifacts.story_index import StoryIndexError, load_story_index, write_story_index
 from vntts_artifacts.text_utils import slugify
 from vntts_artifacts.voice_manifest import (
@@ -159,6 +160,90 @@ class ContractTest(unittest.TestCase):
 
         self.assertIsNone(pack.generated_audio)
         self.assertEqual(pack.generated_wavs, ())
+
+    def test_game_pack_v2_binds_and_validates_live_sequence_plan(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            complete, _manifest, _voice_wav, _generated_wav = (
+                self._write_complete_game_pack_fixture(root)
+            )
+            sequence_path = root / "live-sequence.json"
+            write_live_sequence_plan(
+                sequence_path,
+                {
+                    "game_id": "example",
+                    "producer": {"name": "fixture-builder", "version": "2.0"},
+                    "source_extract_sha256": "1" * 64,
+                    "chapters": [
+                        {
+                            "chapter": "1",
+                            "entry_event_ids": ["event-1"],
+                            "events": [
+                                {
+                                    "event_id": "event-1",
+                                    "sequence": 1,
+                                    "kind": "speech",
+                                    "line_id": "game:1",
+                                    "control": "terminal",
+                                    "successors": [],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                complete.story_index.path,
+            )
+
+            pack = write_game_pack(
+                root / "sequence-game-pack.json",
+                {
+                    "game": {"id": "example", "version": "1.2.3"},
+                    "producers": [{"name": "fixture-builder", "version": "2.0"}],
+                    "created_at": "2026-08-29T12:00:00Z",
+                },
+                {
+                    "story_index": complete.story_index.path,
+                    "voice_manifest": complete.voice_manifest.path,
+                    "live_sequence_plan": sequence_path,
+                },
+            )
+            document = json.loads(pack.manifest_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(pack.schema_version, 2)
+            self.assertEqual(pack.live_sequence_plan.path, sequence_path.resolve())
+            self.assertIn("live_sequence_plan", document["components"])
+            sequence_path.write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(GamePackError, "checksum does not match"):
+                load_game_pack(pack.manifest_path)
+
+    def test_game_pack_loader_retains_schema_v1_compatibility(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["schema_version"] = 1
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+
+            loaded = load_game_pack(manifest)
+
+        self.assertEqual(loaded.schema_version, 1)
+        self.assertIsNone(loaded.live_sequence_plan)
+
+    def test_schema_v1_rejects_v2_live_sequence_component(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            _pack, manifest, _voice_wav, _generated_wav = self._write_complete_game_pack_fixture(
+                root
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            document["schema_version"] = 1
+            document["components"]["live_sequence_plan"] = document["components"]["story_index"]
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+
+            with self.assertRaisesRegex(GamePackError, "Unsupported game-pack component"):
+                load_game_pack(manifest)
 
     def test_game_pack_rejects_tampered_and_undeclared_referenced_files(self):
         with TemporaryDirectory() as directory:

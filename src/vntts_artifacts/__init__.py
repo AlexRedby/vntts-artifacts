@@ -1,6 +1,6 @@
 """Versioned artifact contracts shared by VNTTS producers and consumers."""
 
-__version__ = "0.6.2"
+__version__ = "0.7.0"
 
 from vntts_artifacts.audio import PCM16_MONO_WAV_FORMAT
 from vntts_artifacts.game_pack import (
@@ -29,6 +29,16 @@ from vntts_artifacts.generated_audio import (
     write_generated_audio_manifest,
 )
 from vntts_artifacts.hashing import text_sha256
+from vntts_artifacts.live_sequence import (
+    LIVE_SEQUENCE_SCHEMA,
+    LIVE_SEQUENCE_SCHEMA_VERSION,
+    LiveSequenceChapter,
+    LiveSequenceEvent,
+    LiveSequencePlan,
+    LiveSequencePlanError,
+    load_live_sequence_plan,
+    write_live_sequence_plan,
+)
 from vntts_artifacts.story_index import (
     SOURCE_AUDIO_STATUSES,
     STORY_INDEX_SCHEMA,
@@ -72,6 +82,12 @@ __all__ = [
     "GamePackArtifactBinding",
     "GamePackError",
     "GamePackProducer",
+    "LIVE_SEQUENCE_SCHEMA",
+    "LIVE_SEQUENCE_SCHEMA_VERSION",
+    "LiveSequenceChapter",
+    "LiveSequenceEvent",
+    "LiveSequencePlan",
+    "LiveSequencePlanError",
     "GeneratedAudioDocument",
     "GeneratedAudioEntry",
     "GeneratedAudioIndex",
@@ -98,6 +114,7 @@ __all__ = [
     "VoiceGenerationQueueItem",
     "create_game_pack_artifact_bindings",
     "load_game_pack",
+    "load_live_sequence_plan",
     "load_generated_audio_document",
     "load_generated_audio_manifest",
     "load_story_index",
@@ -111,6 +128,7 @@ __all__ = [
     "write_generated_audio_document",
     "write_generated_audio_manifest",
     "write_game_pack",
+    "write_live_sequence_plan",
     "write_story_index",
     "write_story_index_document",
 ]

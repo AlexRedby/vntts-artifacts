@@ -11,11 +11,16 @@ from pathlib import Path, PurePosixPath
 from vntts_artifacts.atomic_io import atomic_write_json
 from vntts_artifacts.file_integrity import sha256_file
 from vntts_artifacts.generated_audio import GeneratedAudioIndex
+from vntts_artifacts.live_sequence import (
+    LiveSequencePlanError,
+    load_live_sequence_plan,
+)
 from vntts_artifacts.story_index import load_story_index
 from vntts_artifacts.voice_manifest import load_voice_manifest
 
 GAME_PACK_SCHEMA = "vntts.game-pack"
-GAME_PACK_SCHEMA_VERSION = 1
+GAME_PACK_SCHEMA_VERSION = 2
+SUPPORTED_GAME_PACK_SCHEMA_VERSIONS = frozenset({1, GAME_PACK_SCHEMA_VERSION})
 
 _ARTIFACT_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]*")
 _EXTENSION_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+")
@@ -23,7 +28,8 @@ _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _CORE_FIELDS = frozenset(
     {"schema", "schema_version", "game", "producers", "created_at", "components"}
 )
-_COMPONENT_FIELDS = frozenset({"story_index", "voice_manifest", "voice_wavs", "generated_audio"})
+_COMPONENT_FIELDS_V1 = frozenset({"story_index", "voice_manifest", "voice_wavs", "generated_audio"})
+_COMPONENT_FIELDS = _COMPONENT_FIELDS_V1 | {"live_sequence_plan"}
 
 
 class GamePackError(RuntimeError):
@@ -52,22 +58,26 @@ class GamePack:
     game_version: str
     producers: tuple[GamePackProducer, ...]
     created_at: str
+    schema_version: int
     story_index: GamePackArtifactBinding
     voice_manifest: GamePackArtifactBinding
     voice_wavs: tuple[GamePackArtifactBinding, ...]
     generated_audio: GamePackArtifactBinding | None
     generated_wavs: tuple[GamePackArtifactBinding, ...]
+    live_sequence_plan: GamePackArtifactBinding | None
     extensions: dict[str, object]
 
     @property
     def artifacts(self):
         generated_manifest = () if self.generated_audio is None else (self.generated_audio,)
+        live_sequence_plan = () if self.live_sequence_plan is None else (self.live_sequence_plan,)
         return (
             self.story_index,
             self.voice_manifest,
             *self.voice_wavs,
             *generated_manifest,
             *self.generated_wavs,
+            *live_sequence_plan,
         )
 
 
@@ -77,8 +87,8 @@ def write_game_pack(path, metadata, components):
     ``metadata`` supplies ``game``, ``producers``, ``created_at``, and optional
     namespaced extension fields. ``components`` supplies paths for required
     ``story_index`` and ``voice_manifest`` files and an optional
-    ``generated_audio`` manifest. Referenced WAV bindings are derived rather
-    than accepted from the caller.
+    ``generated_audio`` manifest and optional ``live_sequence_plan``. Referenced
+    WAV bindings are derived rather than accepted from the caller.
     """
     path = Path(path).expanduser().resolve()
     root = path.parent
@@ -87,7 +97,7 @@ def write_game_pack(path, metadata, components):
     if not isinstance(components, dict):
         raise GamePackError("Game-pack components must be an object")
     unknown_components = set(components).difference(
-        {"story_index", "voice_manifest", "generated_audio"}
+        {"story_index", "voice_manifest", "generated_audio", "live_sequence_plan"}
     )
     if unknown_components:
         raise GamePackError(f"Unsupported game-pack component: {sorted(unknown_components)[0]!r}")
@@ -100,6 +110,15 @@ def write_game_pack(path, metadata, components):
     voice_path = _source_component_path(root, components["voice_manifest"], "voice_manifest")
     _load_story_index(story_path)
     voice_wav_paths = _load_voice_wav_paths(root, voice_path)
+
+    live_sequence_path = None
+    if components.get("live_sequence_plan") is not None:
+        live_sequence_path = _source_component_path(
+            root, components["live_sequence_plan"], "live_sequence_plan"
+        )
+        live_sequence = _load_live_sequence(live_sequence_path, story_path)
+        if live_sequence.game_id != core_metadata["game"]["id"]:
+            raise GamePackError("Game-pack live sequence plan belongs to a different game")
 
     generated_path = None
     generated_wav_paths = ()
@@ -119,6 +138,8 @@ def write_game_pack(path, metadata, components):
         named_paths.update(
             {f"generated_wav_{index:04d}": value for index, value in enumerate(generated_wav_paths)}
         )
+    if live_sequence_path is not None:
+        named_paths["live_sequence_plan"] = live_sequence_path
     _reject_duplicate_paths(named_paths)
     bindings = create_game_pack_artifact_bindings(root, named_paths)
 
@@ -142,6 +163,8 @@ def write_game_pack(path, metadata, components):
                 bindings[f"generated_wav_{index:04d}"] for index in range(len(generated_wav_paths))
             ],
         }
+    if live_sequence_path is not None:
+        document["components"]["live_sequence_plan"] = bindings["live_sequence_plan"]
     atomic_write_json(path, document)
     return load_game_pack(path)
 
@@ -157,10 +180,9 @@ def load_game_pack(path):
         raise GamePackError("Game-pack document must be an object")
     if document.get("schema") != GAME_PACK_SCHEMA:
         raise GamePackError(f"Unsupported game-pack schema: {document.get('schema')!r}")
-    if document.get("schema_version") != GAME_PACK_SCHEMA_VERSION:
-        raise GamePackError(
-            f"Unsupported game-pack schema version: {document.get('schema_version')!r}"
-        )
+    schema_version = document.get("schema_version")
+    if schema_version not in SUPPORTED_GAME_PACK_SCHEMA_VERSIONS:
+        raise GamePackError(f"Unsupported game-pack schema version: {schema_version!r}")
     core_metadata, extensions = _validate_metadata(
         {
             key: value
@@ -175,7 +197,8 @@ def load_game_pack(path):
     components = document.get("components")
     if not isinstance(components, dict):
         raise GamePackError("Game-pack components must be an object")
-    unknown_components = set(components).difference(_COMPONENT_FIELDS)
+    supported_components = _COMPONENT_FIELDS_V1 if schema_version == 1 else _COMPONENT_FIELDS
+    unknown_components = set(components).difference(supported_components)
     if unknown_components:
         raise GamePackError(f"Unsupported game-pack component: {sorted(unknown_components)[0]!r}")
     missing = {"story_index", "voice_manifest", "voice_wavs"}.difference(components)
@@ -201,9 +224,19 @@ def load_game_pack(path):
         expected_generated_paths = _load_generated_wav_paths(root, generated.path)
         _require_exact_declared_paths("generated WAV", expected_generated_paths, generated_wavs)
 
+    live_sequence = None
+    raw_live_sequence = components.get("live_sequence_plan")
+    if raw_live_sequence is not None:
+        live_sequence = _validate_binding(root, "live_sequence_plan", raw_live_sequence)
+        sequence_plan = _load_live_sequence(live_sequence.path, story.path)
+        if sequence_plan.game_id != core_metadata["game"]["id"]:
+            raise GamePackError("Game-pack live sequence plan belongs to a different game")
+
     all_bindings = (story, voice, *voice_wavs)
     if generated is not None:
         all_bindings += (generated, *generated_wavs)
+    if live_sequence is not None:
+        all_bindings += (live_sequence,)
     _reject_duplicate_paths({binding.name: binding.path for binding in all_bindings})
 
     game = core_metadata["game"]
@@ -216,11 +249,13 @@ def load_game_pack(path):
             for producer in core_metadata["producers"]
         ),
         created_at=core_metadata["created_at"],
+        schema_version=schema_version,
         story_index=story,
         voice_manifest=voice,
         voice_wavs=voice_wavs,
         generated_audio=generated,
         generated_wavs=generated_wavs,
+        live_sequence_plan=live_sequence,
         extensions=extensions,
     )
 
@@ -353,6 +388,13 @@ def _load_story_index(path):
         return load_story_index(path)
     except Exception as error:
         raise GamePackError(f"Invalid game-pack story index {path}: {error}") from error
+
+
+def _load_live_sequence(path, story_index_path):
+    try:
+        return load_live_sequence_plan(path, story_index_path)
+    except LiveSequencePlanError as error:
+        raise GamePackError(f"Invalid game-pack live sequence plan {path}: {error}") from error
 
 
 def _load_voice_wav_paths(root, manifest_path):

@@ -16,9 +16,11 @@ and game-specific extraction.
   story line ID and SHA-256 of the current story text
 - `vntts.voice-generation-queue` JSONL, schema version 1, with immutable line,
   text, queue, source-audio, and authoring-action identity
-- `vntts.game-pack` JSON, schema version 1, binding a game identity, producer
-  provenance, story index, voice manifest, all referenced voice WAVs, and an
-  optional generated-audio manifest with all of its WAVs
+- `vntts.live-sequence-plan` JSON, schema version 1, binding explicit story
+  control flow to exact story-index bytes and stable line identities
+- `vntts.game-pack` JSON, schema version 2, binding a game identity, producer
+  provenance, story index, voice manifest, all referenced voice WAVs, optional
+  generated audio and an optional live sequence plan
 - VNTTS voice manifest JSON, version 2, with read compatibility for legacy
   unversioned manifests
 - atomic file publication, streaming SHA-256, stable text hashes and artifact
@@ -177,14 +179,34 @@ compatibility fixture are documented in
 Release-level producer and consumer support for every current wire format is
 listed in [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md).
 
+## Live sequence plans
+
+A sequence plan is producer-owned control flow for one exact story index. Its
+speech events bind stable line IDs; silent boxes, passive transitions, choices
+and manual waits remain explicit graph events. The reader rejects a changed
+story index, missing or cross-chapter successors, unreachable nodes and
+unguarded automatic cycles.
+
+```python
+from vntts_artifacts import load_live_sequence_plan, write_live_sequence_plan
+
+plan = write_live_sequence_plan(output, producer_document, story_index)
+plan = load_live_sequence_plan(output, story_index)
+event = plan.event_for_line("game:chapter:line")
+```
+
+The document retains the producer name/version and SHA-256 of the source
+extract. The writer calculates the story-index SHA-256 and validates a temporary
+candidate before publishing the requested path.
+
 ## Game packs
 
-A version 1 game pack is a JSON document with this envelope:
+A version 2 game pack is a JSON document with this envelope:
 
 ```json
 {
   "schema": "vntts.game-pack",
-  "schema_version": 1,
+  "schema_version": 2,
   "game": {"id": "example-game", "version": "1.2.3"},
   "producers": [{"name": "extractor", "version": "2.0.0"}],
   "created_at": "2026-08-16T12:00:00Z",
@@ -194,6 +216,10 @@ A version 1 game pack is a JSON document with this envelope:
     "voice_wavs": [
       {"path": "voices/ada.wav", "sha256": "<lowercase SHA-256>"}
     ],
+    "live_sequence_plan": {
+      "path": "live-sequence.json",
+      "sha256": "<lowercase SHA-256>"
+    },
     "generated_audio": {
       "manifest": {
         "path": "generated-audio.json",
@@ -209,16 +235,18 @@ A version 1 game pack is a JSON document with this envelope:
 ```
 
 `story_index`, `voice_manifest`, and `voice_wavs` are required;
-`generated_audio` is optional. Every path is POSIX-relative to the pack
+`generated_audio` and `live_sequence_plan` are optional. Every path is
+POSIX-relative to the pack
 directory. The reader rejects missing or modified files, absolute paths, path
 traversal, duplicate bindings, referenced-but-undeclared WAVs, declared WAVs
 that are not referenced, unsupported component names, and unnamespaced unknown
 top-level fields. A top-level extension name must contain at least one dot.
 Extensions are returned as opaque metadata and never interpreted as trusted
-artifacts.
+artifacts. The loader retains schema-v1 read compatibility, while the writer
+emits schema v2; a sequence-plan component is never accepted under schema v1.
 
 The writer derives nested WAV bindings from the two manifests, so callers only
-provide the three semantic component paths:
+provide semantic component paths rather than duplicating referenced WAV lists:
 
 ```python
 from vntts_artifacts import load_game_pack, write_game_pack
@@ -234,6 +262,7 @@ pack = write_game_pack(
         "story_index": story_index,
         "voice_manifest": voice_manifest,
         "generated_audio": generated_audio_manifest,
+        "live_sequence_plan": live_sequence_plan,
     },
 )
 
@@ -279,8 +308,10 @@ and the sample rate must be a positive non-boolean integer. Callers rendering
 multiple channels must downmix explicitly before invoking it.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.
-`v0.6.2` adds the lossless generated-audio document API, strict mono writer
-validation, and contained standalone voice/generated reference paths. `v0.6.1`
+`v0.7.0` adds the live-sequence contract and game-pack schema v2 while retaining
+schema-v1 read compatibility. `v0.6.2` adds the lossless generated-audio
+document API, strict mono writer validation, and contained standalone
+voice/generated reference paths. `v0.6.1`
 is the first release containing the lossless story-index document API, while
 `v0.6.0` remains the first complete game-pack and voice-generation-queue
 release. See [`CHANGELOG.md`](CHANGELOG.md) for durable release notes and

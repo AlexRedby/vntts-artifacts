@@ -9,7 +9,8 @@ releases. “Producer” means the package can publish a validated artifact;
 | Story index (`vntts.story-index`) | 1 | `v0.1.0` | `v0.1.0` | Legacy line APIs since `v0.1.0`; `StoryIndexDocument`, `load_story_index_document`, and `write_story_index_document` since `v0.6.1` |
 | Voice manifest | 2 | `v0.1.0` | `v0.1.0` | `write_voice_manifest`, `load_voice_manifest` |
 | Generated audio (`vntts.generated-audio`) | 1 | `v0.2.0` | `v0.2.0` | Legacy manifest/index APIs since `v0.2.0`; lossless `GeneratedAudioDocument`, `GeneratedAudioRecord`, `load_generated_audio_document`, and `write_generated_audio_document` since `v0.6.2` |
-| Game pack (`vntts.game-pack`) | 1 | `v0.6.0` | `v0.6.0` | `write_game_pack`, `load_game_pack` |
+| Live sequence (`vntts.live-sequence-plan`) | 1 | `v0.7.0` | `v0.7.0` | `LiveSequencePlan`, `load_live_sequence_plan`, `write_live_sequence_plan` |
+| Game pack (`vntts.game-pack`) | 2 | `v0.7.0` | `v0.7.0` | `write_game_pack`, `load_game_pack`; schema-v1 read compatibility since `v0.7.0` |
 | Voice-generation queue (`vntts.voice-generation-queue`) | 1 | `v0.6.0` | `v0.6.0` | Reader/writer since `v0.6.0`; canonical `voice_generation_action` policy since `v0.6.1` |
 
 ## Release boundaries
@@ -30,6 +31,10 @@ releases. “Producer” means the package can publish a validated artifact;
   symlinked standalone voice/generated artifact references and makes the shared
   PCM writer a strict finite one-dimensional mono boundary. Wire versions stay
   unchanged.
+- `v0.7.0` introduces live-sequence schema version 1 and game-pack schema
+  version 2. The new game-pack version is necessary because v0.6.x schema-v1
+  readers correctly reject unknown core components. Its loader still accepts
+  immutable schema-v1 packs; its writer emits schema v2.
 - Generated-audio schema version 1 first shipped in `v0.2.0`. `v0.3.0`
   centralized its hashing and WAV primitives without changing the wire version.
   The lossless document/record APIs added in `v0.6.2` preserve complete
@@ -41,8 +46,10 @@ releases. “Producer” means the package can publish a validated artifact;
 
 ## Consumer rules
 
-- Story-index, generated-audio, game-pack, and voice-generation-queue readers
-  accept only the exact schema and version shown above.
+- Story-index, generated-audio, live-sequence and voice-generation-queue readers
+  accept only the exact schema and version shown above. The game-pack reader is
+  the deliberate exception: v0.7.0 accepts schema versions 1 and 2 so existing
+  packs remain consumable.
 - Voice-manifest readers accept version 2. `load_voice_manifest` can also read
   the older unversioned shape when `allow_legacy=True`; writers always publish
   version 2.
@@ -55,6 +62,9 @@ releases. “Producer” means the package can publish a validated artifact;
   `manual_review` as an explicit producer policy.
 - A game-pack consumer trusts only resolved paths returned by `load_game_pack`
   after the complete checksum and nested-reference validation succeeds.
+- A live sequence plan is reusable only with the exact story-index bytes named
+  by its SHA-256. A game pack additionally requires the plan and pack game IDs
+  to match.
 
 ## Additive story-index APIs
 
