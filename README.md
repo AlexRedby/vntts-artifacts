@@ -131,7 +131,7 @@ Generic builders consuming `StoryIndexRecord` use canonical policy:
 | --- | --- |
 | `absent` | `generate` |
 | `unavailable` | `prefer_source_audio` |
-| `available` | Exclude the line; `voice_generation_action` returns `None` |
+| `available` | Exclude the line, except `source_audio_completeness=partial` returns `generate` for the complete displayed-text continuation |
 | `unknown` | Explicitly choose `resolve_audio` or `manual_review` |
 
 ```python
@@ -308,6 +308,8 @@ and the sample rate must be a positive non-boolean integer. Callers rendering
 multiple channels must downmix explicitly before invoking it.
 
 Releases use matching package versions and immutable Git tags such as `v0.1.0`.
+`v0.7.2` adds the fail-closed partial source-cue continuation exception without
+changing the queue wire schema.
 `v0.7.1` makes passive transitions part of unguarded automatic-cycle detection.
 `v0.7.0` adds the live-sequence contract and game-pack schema v2 while retaining
 schema-v1 read compatibility. `v0.6.2` adds the lossless generated-audio

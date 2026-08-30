@@ -178,6 +178,13 @@ class VoiceGenerationQueueTest(unittest.TestCase):
         self.assertEqual(voice_generation_action("unavailable"), "prefer_source_audio")
         self.assertIsNone(voice_generation_action("available"))
         self.assertEqual(
+            voice_generation_action(
+                "available",
+                source_audio_completeness="partial",
+            ),
+            "generate",
+        )
+        self.assertEqual(
             voice_generation_action("unknown", unknown_action="resolve_audio"),
             "resolve_audio",
         )
@@ -225,6 +232,40 @@ class VoiceGenerationQueueTest(unittest.TestCase):
                     queue_metadata(source_audio_status_counts={"available": 1}),
                     [queue_item(source_audio_status="available")],
                 )
+            partial = queue_item(
+                line_id="canonical:partial",
+                source_audio_status="available",
+                action="generate",
+            )
+            partial["source_audio_completeness"] = "partial"
+            _metadata, items = load_voice_generation_queue(
+                write_voice_generation_queue(
+                    root / "available-partial.jsonl",
+                    queue_metadata(
+                        source_audio_status_counts={"available": 1},
+                        action_counts={"generate": 1},
+                    ),
+                    [partial],
+                )
+            )
+            self.assertEqual(items[0].document["source_audio_completeness"], "partial")
+            for completeness in ("full", "unknown"):
+                with self.subTest(completeness=completeness):
+                    unsafe = queue_item(
+                        line_id=f"canonical:{completeness}",
+                        source_audio_status="available",
+                        action="generate",
+                    )
+                    unsafe["source_audio_completeness"] = completeness
+                    with self.assertRaisesRegex(
+                        VoiceGenerationQueueError,
+                        "must be excluded",
+                    ):
+                        write_voice_generation_queue(
+                            root / f"available-{completeness}.jsonl",
+                            queue_metadata(),
+                            [unsafe],
+                        )
             with self.assertRaisesRegex(VoiceGenerationQueueError, "explicit unknown_action"):
                 write_voice_generation_queue(
                     root / "unsafe-unknown.jsonl",

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.2] - 2026-08-30
+
+### Added
+
+- Voice-generation queue schema v1 now accepts an `available` source-audio
+  record only when its preserved `source_audio_completeness` is exactly
+  `partial` and its action is `generate`. This additive exception represents
+  the complete displayed-text continuation after a shorter original-game cue;
+  full, unknown and unclassified available audio remain excluded.
+
 ## [0.7.1] - 2026-08-29
 
 Safety patch for live-sequence graph validation. Wire schemas and public APIs

@@ -115,8 +115,13 @@ def expected_voice_generation_queue_id(line_id, text_hash):
     return f"{line_id}:{text_hash[:16]}"
 
 
-def voice_generation_action(source_audio_status, *, unknown_action=None):
-    """Return the v1 action, ``None`` for available audio, or require unknown policy."""
+def voice_generation_action(
+    source_audio_status,
+    *,
+    unknown_action=None,
+    source_audio_completeness=None,
+):
+    """Return the v1 action, including complete-text continuation for partial cues."""
     try:
         return VOICE_GENERATION_ACTION_BY_SOURCE_AUDIO_STATUS[source_audio_status]
     except (KeyError, TypeError) as error:
@@ -124,6 +129,8 @@ def voice_generation_action(source_audio_status, *, unknown_action=None):
             isinstance(source_audio_status, str)
             and source_audio_status in VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES
         ):
+            if source_audio_completeness == "partial":
+                return "generate"
             return None
         if source_audio_status == "unknown":
             if unknown_action not in VOICE_GENERATION_UNKNOWN_SOURCE_AUDIO_ACTIONS:
@@ -235,15 +242,20 @@ def _validate_item(record, index):
             f"Voice-generation item {index} source_audio_reason requires source_audio_status"
         )
     if source_status is not None:
-        if source_status in VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES:
+        source_completeness = _optional_text(
+            record.get("source_audio_completeness"),
+            "source_audio_completeness",
+        )
+        expected_action = voice_generation_action(
+            source_status,
+            unknown_action=action if source_status == "unknown" else None,
+            source_audio_completeness=source_completeness,
+        )
+        if expected_action is None:
             raise VoiceGenerationQueueError(
                 f"Voice-generation item {index} source_audio_status {source_status!r} "
                 "must be excluded from the queue"
             )
-        expected_action = voice_generation_action(
-            source_status,
-            unknown_action=action if source_status == "unknown" else None,
-        )
         if action != expected_action:
             raise VoiceGenerationQueueError(
                 f"Voice-generation item {index} action {action!r} does not match "
