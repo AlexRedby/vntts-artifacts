@@ -221,7 +221,9 @@ def load_game_pack(path):
             raise GamePackError("Game-pack generated_audio must contain exactly manifest and wavs")
         generated = _validate_binding(root, "generated_audio", raw_generated["manifest"])
         generated_wavs = _validate_binding_list(root, "generated_wav", raw_generated["wavs"])
-        expected_generated_paths = _load_generated_wav_paths(root, generated.path)
+        expected_generated_paths = _load_generated_wav_paths(
+            root, generated.path, verified_bindings=generated_wavs
+        )
         _require_exact_declared_paths("generated WAV", expected_generated_paths, generated_wavs)
 
     live_sequence = None
@@ -414,13 +416,14 @@ def _load_voice_wav_paths(root, manifest_path):
     return tuple(sorted(set(paths), key=lambda value: value.relative_to(root).as_posix()))
 
 
-def _load_generated_wav_paths(root, manifest_path):
+def _load_generated_wav_paths(root, manifest_path, *, verified_bindings=()):
     try:
         index = GeneratedAudioIndex.load(manifest_path)
     except Exception as error:
         raise GamePackError(
             f"Invalid game-pack generated-audio manifest {manifest_path}: {error}"
         ) from error
+    verified = {binding.path: binding.sha256 for binding in verified_bindings}
     paths = []
     for entry in index.entries:
         path = entry.audio.resolve()
@@ -429,10 +432,14 @@ def _load_generated_wav_paths(root, manifest_path):
             raise GamePackError(f"Generated audio is not a WAV file: {path}")
         if not path.is_file():
             raise GamePackError(f"Generated WAV does not exist: {path}")
-        try:
-            digest = sha256_file(path)
-        except OSError as error:
-            raise GamePackError(f"Unable to checksum generated WAV {path}: {error}") from error
+        digest = verified.get(path)
+        if digest is None:
+            try:
+                digest = sha256_file(path)
+            except OSError as error:
+                raise GamePackError(
+                    f"Unable to checksum generated WAV {path}: {error}"
+                ) from error
         if digest != entry.audio_sha256:
             raise GamePackError(f"Generated WAV checksum does not match manifest: {path}")
         paths.append(path)
