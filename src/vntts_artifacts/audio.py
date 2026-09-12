@@ -52,7 +52,7 @@ def read_pcm16_mono_wav(path):
     if sample_rate < 1:
         raise Pcm16MonoWavError("WAV sample rate must be positive")
 
-    peak = max((abs(value) for value in samples), default=0) / 32768
+    peak = max(map(abs, samples), default=0) / 32768
     info = Pcm16MonoWavInfo(
         sample_rate=sample_rate,
         sample_count=sample_count,
