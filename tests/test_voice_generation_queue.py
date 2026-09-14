@@ -249,7 +249,24 @@ class VoiceGenerationQueueTest(unittest.TestCase):
                 )
             )
             self.assertEqual(items[0].document["source_audio_completeness"], "partial")
-            for completeness in ("full", "unknown"):
+            unknown = queue_item(
+                line_id="canonical:unknown",
+                source_audio_status="available",
+                action="generate",
+            )
+            unknown["source_audio_completeness"] = "unknown"
+            _metadata, items = load_voice_generation_queue(
+                write_voice_generation_queue(
+                    root / "available-unknown.jsonl",
+                    queue_metadata(
+                        source_audio_status_counts={"available": 1},
+                        action_counts={"generate": 1},
+                    ),
+                    [unknown],
+                )
+            )
+            self.assertEqual(items[0].document["source_audio_completeness"], "unknown")
+            for completeness in ("full",):
                 with self.subTest(completeness=completeness):
                     unsafe = queue_item(
                         line_id=f"canonical:{completeness}",

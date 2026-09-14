@@ -129,7 +129,7 @@ def voice_generation_action(
             isinstance(source_audio_status, str)
             and source_audio_status in VOICE_GENERATION_EXCLUDED_SOURCE_AUDIO_STATUSES
         ):
-            if source_audio_completeness == "partial":
+            if source_audio_completeness in {"partial", "unknown"}:
                 return "generate"
             return None
         if source_audio_status == "unknown":
