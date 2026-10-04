@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Alex Redby" }]
 dependencies = [
-    "durable-file @ git+https://github.com/AlexRedby/vntts-artifacts.git@durable-file-v0.1.0",
+    "durable-file @ git+https://github.com/AlexRedby/vntts-artifacts.git@0e22c629dde9de070eb7f13c87609e5905277ab9",
 ]
 
 [project.optional-dependencies]
