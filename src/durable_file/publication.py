@@ -8,6 +8,10 @@ import tempfile
 from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
+
+PathInput = str | os.PathLike[str]
+ByteContent = bytes | bytearray | memoryview
 
 
 def _ensure_parent(path: Path, directory_mode: int | None) -> None:
@@ -38,7 +42,12 @@ def atomic_output_path(path, *, directory_mode=None):
 
 
 @contextmanager
-def staged_bytes(path, content, *, directory_mode=None):
+def staged_bytes(
+    path: PathInput,
+    content: ByteContent,
+    *,
+    directory_mode: int | None = None,
+) -> Iterator[Path]:
     """Yield a durable sibling file without publishing it."""
     destination = Path(path)
     _ensure_parent(destination, directory_mode)
@@ -59,7 +68,15 @@ def staged_bytes(path, content, *, directory_mode=None):
 
 
 @contextmanager
-def staged_json(path, value, *, ensure_ascii=False, indent=2, sort_keys=False, directory_mode=None):
+def staged_json(
+    path: PathInput,
+    value: object,
+    *,
+    ensure_ascii: bool = False,
+    indent: int | str | None = 2,
+    sort_keys: bool = False,
+    directory_mode: int | None = None,
+) -> Iterator[Path]:
     rendered = json.dumps(
         value,
         ensure_ascii=ensure_ascii,
@@ -74,13 +91,24 @@ def staged_json(path, value, *, ensure_ascii=False, indent=2, sort_keys=False, d
         yield temporary
 
 
-def atomic_write_bytes(path, content, *, directory_mode=None):
+def atomic_write_bytes(
+    path: PathInput,
+    content: ByteContent,
+    *,
+    directory_mode: int | None = None,
+) -> Path:
     with staged_bytes(path, content, directory_mode=directory_mode) as temporary:
         os.replace(temporary, path)
     return Path(path)
 
 
-def atomic_write_text(path, content, *, encoding="utf-8", directory_mode=None):
+def atomic_write_text(
+    path: PathInput,
+    content: str,
+    *,
+    encoding: str = "utf-8",
+    directory_mode: int | None = None,
+) -> Path:
     return atomic_write_bytes(
         path,
         content.encode(encoding),
@@ -89,14 +117,14 @@ def atomic_write_text(path, content, *, encoding="utf-8", directory_mode=None):
 
 
 def atomic_write_json(
-    path,
-    value,
+    path: PathInput,
+    value: object,
     *,
-    ensure_ascii=False,
-    indent=2,
-    sort_keys=False,
-    directory_mode=None,
-):
+    ensure_ascii: bool = False,
+    indent: int | str | None = 2,
+    sort_keys: bool = False,
+    directory_mode: int | None = None,
+) -> Path:
     rendered = json.dumps(
         value,
         ensure_ascii=ensure_ascii,
@@ -148,11 +176,11 @@ def replace_file_group(files: Mapping[Path, bytes], *, directory_mode=None):
             published.append(destination)
     except BaseException:
         for destination in reversed(destinations):
-            backup = backups.get(destination)
+            prior_backup = backups.get(destination)
             if destination in published:
                 destination.unlink(missing_ok=True)
-            if backup is not None and backup.exists():
-                os.replace(backup, destination)
+            if prior_backup is not None and prior_backup.exists():
+                os.replace(prior_backup, destination)
         raise
     finally:
         for temporary in staged.values():
