@@ -43,12 +43,13 @@ def read_pcm16_mono_wav(path):
     except (OSError, EOFError, wave.Error) as error:
         raise Pcm16MonoWavError(f"unreadable WAV: {error}") from error
 
+    if len(content) != sample_count * 2:
+        raise Pcm16MonoWavError("WAV sample data is incomplete")
+
     samples = array("h")
     samples.frombytes(content)
     if sys.byteorder != "little":
         samples.byteswap()
-    if len(samples) != sample_count:
-        raise Pcm16MonoWavError("WAV sample data is incomplete")
     if sample_rate < 1:
         raise Pcm16MonoWavError("WAV sample rate must be positive")
 

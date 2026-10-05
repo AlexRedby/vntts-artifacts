@@ -452,6 +452,22 @@ class ContractTest(unittest.TestCase):
             with self.assertRaisesRegex(Pcm16MonoWavError, "mono 16-bit"):
                 probe_pcm16_mono_wav(path)
 
+    def test_pcm16_wav_reader_rejects_truncated_sample_data(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "truncated.wav"
+            with wave.open(str(path), "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(24_000)
+                output.writeframes(b"\0" * 4)
+            complete = path.read_bytes()
+            for missing_bytes in (1, 2):
+                path.write_bytes(complete[:-missing_bytes])
+                for read in (read_pcm16_mono_wav, probe_pcm16_mono_wav):
+                    with self.subTest(missing_bytes=missing_bytes, read=read.__name__):
+                        with self.assertRaisesRegex(Pcm16MonoWavError, "incomplete"):
+                            read(path)
+
     def test_pcm16_wav_writer_rejects_multichannel_shapes(self):
         import numpy as np
 
