@@ -81,8 +81,9 @@ def write_pcm16_wav(path, samples, sample_rate):
         validated_sample_rate = index(sample_rate)
     except TypeError as error:
         raise Pcm16MonoWavError("sample rate must be a positive integer") from error
-    if not 1 <= validated_sample_rate <= 0xFFFFFFFF:
-        raise Pcm16MonoWavError("sample rate must be a positive 32-bit integer")
+    # Mono PCM16 stores twice the sample rate in the uint32 byte-rate field.
+    if not 1 <= validated_sample_rate <= 0xFFFFFFFF // 2:
+        raise Pcm16MonoWavError("sample rate must fit the PCM16 WAV byte-rate field")
 
     try:
         values = np.asarray(samples)

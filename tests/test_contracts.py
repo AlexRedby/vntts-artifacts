@@ -490,7 +490,7 @@ class ContractTest(unittest.TestCase):
                     self.assertFalse(path.exists())
 
     def test_pcm16_wav_writer_rejects_invalid_sample_rates(self):
-        invalid_sample_rates = (0, -1, True, False, 24_000.0, "24000", 2**32)
+        invalid_sample_rates = (0, -1, True, False, 24_000.0, "24000", 2**31, 2**32 - 1, 2**32)
         with TemporaryDirectory() as directory:
             for sample_rate in invalid_sample_rates:
                 with self.subTest(sample_rate=sample_rate):
@@ -498,6 +498,22 @@ class ContractTest(unittest.TestCase):
                     with self.assertRaisesRegex(Pcm16MonoWavError, "sample rate"):
                         write_pcm16_wav(path, [0.0], sample_rate)
                     self.assertFalse(path.exists())
+
+    def test_pcm16_wav_writer_sample_rate_boundary_preserves_destination(self):
+        import numpy as np
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "audio.wav"
+            maximum_rate = np.int64(0xFFFFFFFF // 2)
+            write_pcm16_wav(path, [0.0, 0.5], maximum_rate)
+            original = path.read_bytes()
+            samples, info = read_pcm16_mono_wav(path)
+            self.assertEqual(info.sample_rate, maximum_rate)
+            self.assertEqual(list(samples), [0, 16384])
+            with self.assertRaisesRegex(Pcm16MonoWavError, "sample rate"):
+                write_pcm16_wav(path, [1.0], maximum_rate + 1)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(list(Path(directory).iterdir()), [path])
 
     def test_text_hash_is_shared_across_contracts(self):
         self.assertEqual(text_sha256("Hello"), shared_text_sha256("Hello"))
