@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ version = "0.7.2"
 description = "Versioned artifact contracts shared by VNTTS producers and consumers"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Alex Redby" }]
 dependencies = [
     "durable-file @ git+https://github.com/AlexRedby/vntts-artifacts.git@0e22c629dde9de070eb7f13c87609e5905277ab9",
