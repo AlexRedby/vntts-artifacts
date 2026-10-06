@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.3] - 2026-10-06
+
+### Fixed
+
+- Build metadata uses the standard SPDX MIT license expression with a compatible
+  setuptools minimum, preserving the included license file.
+- All six artifact readers require actual integer schema versions, rejecting
+  floats and booleans while preserving unversioned voice-manifest legacy reads
+  and integer game-pack versions 1 and 2. Wire versions and public APIs are unchanged.
+- PCM16 WAV validation rejects incomplete samples and inconsistent byte rates;
+  generic file operations use the typed durable-file contracts.
+
 ## [0.7.2] - 2026-08-30
 
 ### Added
