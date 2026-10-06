@@ -93,7 +93,10 @@ def load_live_sequence_plan(path, story_index_path):
     )
     if document["schema"] != LIVE_SEQUENCE_SCHEMA:
         raise LiveSequencePlanError(f"Unsupported live sequence schema: {document['schema']!r}")
-    if document["schema_version"] != LIVE_SEQUENCE_SCHEMA_VERSION:
+    if (
+        type(document["schema_version"]) is not int
+        or document["schema_version"] != LIVE_SEQUENCE_SCHEMA_VERSION
+    ):
         raise LiveSequencePlanError(
             f"Unsupported live sequence schema version: {document['schema_version']!r}"
         )

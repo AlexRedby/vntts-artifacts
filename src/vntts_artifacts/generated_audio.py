@@ -240,7 +240,10 @@ def _validate_document(document, manifest_path):
         raise GeneratedAudioManifestError(
             f"Unsupported generated-audio schema: {document.get('schema')!r}"
         )
-    if document.get("schema_version") != GENERATED_AUDIO_SCHEMA_VERSION:
+    if (
+        type(document.get("schema_version")) is not int
+        or document.get("schema_version") != GENERATED_AUDIO_SCHEMA_VERSION
+    ):
         raise GeneratedAudioManifestError(
             f"Unsupported generated-audio schema version: {document.get('schema_version')!r}"
         )

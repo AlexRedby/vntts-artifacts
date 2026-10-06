@@ -305,7 +305,10 @@ def _validate_metadata(metadata):
         raise StoryIndexError("Story index must begin with a metadata record")
     if metadata.get("schema") != STORY_INDEX_SCHEMA:
         raise StoryIndexError(f"Unsupported story-index schema: {metadata.get('schema')!r}")
-    if metadata.get("schema_version") != STORY_INDEX_SCHEMA_VERSION:
+    if (
+        type(metadata.get("schema_version")) is not int
+        or metadata.get("schema_version") != STORY_INDEX_SCHEMA_VERSION
+    ):
         raise StoryIndexError(
             f"Unsupported story-index schema version: {metadata.get('schema_version')!r}"
         )

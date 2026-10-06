@@ -180,7 +180,10 @@ def _validate_metadata(metadata):
         raise VoiceGenerationQueueError(
             f"Unsupported voice-generation queue schema: {metadata.get('schema')!r}"
         )
-    if metadata.get("schema_version") != VOICE_GENERATION_QUEUE_SCHEMA_VERSION:
+    if (
+        type(metadata.get("schema_version")) is not int
+        or metadata.get("schema_version") != VOICE_GENERATION_QUEUE_SCHEMA_VERSION
+    ):
         raise VoiceGenerationQueueError(
             f"Unsupported voice-generation queue schema version: {metadata.get('schema_version')!r}"
         )

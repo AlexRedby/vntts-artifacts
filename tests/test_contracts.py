@@ -26,13 +26,23 @@ from vntts_artifacts.game_pack import (
 from vntts_artifacts.generated_audio import (
     GeneratedAudioIndex,
     GeneratedAudioManifestError,
+    load_generated_audio_manifest,
     text_sha256,
     write_generated_audio_manifest,
 )
 from vntts_artifacts.hashing import text_sha256 as shared_text_sha256
-from vntts_artifacts.live_sequence import write_live_sequence_plan
+from vntts_artifacts.live_sequence import (
+    LiveSequencePlanError,
+    load_live_sequence_plan,
+    write_live_sequence_plan,
+)
 from vntts_artifacts.story_index import StoryIndexError, load_story_index, write_story_index
 from vntts_artifacts.text_utils import slugify
+from vntts_artifacts.voice_generation_queue import (
+    VoiceGenerationQueueError,
+    load_voice_generation_queue,
+    write_voice_generation_queue,
+)
 from vntts_artifacts.voice_manifest import (
     VoiceManifestError,
     load_voice_manifest,
@@ -123,6 +133,94 @@ class ContractTest(unittest.TestCase):
             },
         )
         return pack, manifest, voice_wav, generated_wav
+
+    def test_shared_schema_versions_require_json_integers(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            pack, manifest, _voice, _generated = self._write_complete_game_pack_fixture(root)
+            queue = write_voice_generation_queue(root / "queue.jsonl", {}, [])
+            sequence = root / "sequence.json"
+            write_live_sequence_plan(
+                sequence,
+                {
+                    "game_id": "example",
+                    "producer": {"name": "fixture", "version": "1"},
+                    "source_extract_sha256": "1" * 64,
+                    "chapters": [
+                        {
+                            "chapter": "1",
+                            "entry_event_ids": ["event-1"],
+                            "events": [
+                                {
+                                    "event_id": "event-1",
+                                    "sequence": 1,
+                                    "kind": "speech",
+                                    "line_id": "game:1",
+                                    "control": "terminal",
+                                    "successors": [],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                pack.story_index.path,
+            )
+            readers = (
+                (pack.story_index.path, load_story_index, StoryIndexError, True, "schema_version"),
+                (
+                    queue,
+                    load_voice_generation_queue,
+                    VoiceGenerationQueueError,
+                    True,
+                    "schema_version",
+                ),
+                (
+                    pack.voice_manifest.path,
+                    load_voice_manifest,
+                    VoiceManifestError,
+                    False,
+                    "version",
+                ),
+                (
+                    pack.generated_audio.path,
+                    load_generated_audio_manifest,
+                    GeneratedAudioManifestError,
+                    False,
+                    "schema_version",
+                ),
+                (
+                    sequence,
+                    lambda path: load_live_sequence_plan(path, pack.story_index.path),
+                    LiveSequencePlanError,
+                    False,
+                    "schema_version",
+                ),
+                (manifest, load_game_pack, GamePackError, False, "schema_version"),
+            )
+            for path, reader, error, jsonl, field in readers:
+                lines = path.read_text(encoding="utf-8").splitlines()
+                original = json.loads(lines[0] if jsonl else "\n".join(lines))
+                # Every negative case changes only the version of a valid artifact.
+                reader(path)
+                for invalid in (True, False, 1.0, 2.0, "1", "2", [], {}):
+                    with self.subTest(artifact=path.name, version=invalid):
+                        altered = {**original, field: invalid}
+                        payload = json.dumps(altered)
+                        if jsonl:
+                            payload = "\n".join([payload, *lines[1:]]) + "\n"
+                        path.write_text(payload, encoding="utf-8")
+                        with self.assertRaisesRegex(error, "Unsupported .*version"):
+                            reader(path)
+                path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                reader(path)
+
+    def test_unversioned_voice_manifest_keeps_explicit_legacy_policy(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy.json"
+            path.write_text(json.dumps({"voices": []}), encoding="utf-8")
+            self.assertEqual(load_voice_manifest(path)[1], ())
+            with self.assertRaisesRegex(VoiceManifestError, "requires version 2"):
+                load_voice_manifest(path, allow_legacy=False)
 
     def test_game_pack_document_round_trip_returns_resolved_typed_paths(self):
         with TemporaryDirectory() as directory:

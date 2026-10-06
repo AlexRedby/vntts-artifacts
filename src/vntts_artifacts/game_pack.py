@@ -181,7 +181,7 @@ def load_game_pack(path):
     if document.get("schema") != GAME_PACK_SCHEMA:
         raise GamePackError(f"Unsupported game-pack schema: {document.get('schema')!r}")
     schema_version = document.get("schema_version")
-    if schema_version not in SUPPORTED_GAME_PACK_SCHEMA_VERSIONS:
+    if type(schema_version) is not int or schema_version not in SUPPORTED_GAME_PACK_SCHEMA_VERSIONS:
         raise GamePackError(f"Unsupported game-pack schema version: {schema_version!r}")
     core_metadata, extensions = _validate_metadata(
         {
@@ -437,9 +437,7 @@ def _load_generated_wav_paths(root, manifest_path, *, verified_bindings=()):
             try:
                 digest = sha256_file(path)
             except OSError as error:
-                raise GamePackError(
-                    f"Unable to checksum generated WAV {path}: {error}"
-                ) from error
+                raise GamePackError(f"Unable to checksum generated WAV {path}: {error}") from error
         if digest != entry.audio_sha256:
             raise GamePackError(f"Generated WAV checksum does not match manifest: {path}")
         paths.append(path)

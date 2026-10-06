@@ -45,7 +45,7 @@ def validate_voice_manifest(manifest, *, allow_legacy=True):
     if version is None:
         if not allow_legacy:
             raise VoiceManifestError("Voice manifest requires version 2")
-    elif version != VOICE_MANIFEST_VERSION:
+    elif type(version) is not int or version != VOICE_MANIFEST_VERSION:
         raise VoiceManifestError(f"Unsupported voice manifest version: {version!r}")
     entries = manifest.get("voices")
     if not isinstance(entries, list):
