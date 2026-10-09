@@ -28,7 +28,9 @@ class Pcm16MonoWavInfo:
     peak: float
 
 
-def read_pcm16_mono_wav(path: str | PathLike[str] | BinaryIO) -> tuple[array[int], Pcm16MonoWavInfo]:
+def read_pcm16_mono_wav(
+    path: str | PathLike[str] | BinaryIO,
+) -> tuple[array[int], Pcm16MonoWavInfo]:
     """Read PCM16 mono samples from a path or a caller-owned binary stream."""
     try:
         with wave.open(
