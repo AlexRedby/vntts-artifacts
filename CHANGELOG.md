@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.4] - 2026-10-09
+
+### Added
+
+- PCM16 mono WAV readers accept caller-owned binary streams alongside paths,
+  allowing consumers to decode the exact bytes whose checksum they verified.
+  Borrowed streams stay open and are read from their current position; existing
+  path inputs, WAV validation and sample metadata are unchanged.
+
 ## [0.7.3] - 2026-10-06
 
 ### Fixed

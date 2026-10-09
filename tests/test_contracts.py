@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import unittest
 import wave
@@ -538,6 +539,58 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(info.sample_count, 5)
         self.assertEqual(probed, info)
         self.assertAlmostEqual(info.peak, 32767 / 32768)
+
+    def test_pcm16_wav_borrowed_inputs_match_paths_and_stay_open(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "audio.wav"
+            write_pcm16_wav(path, [-0.5, 0.0, 0.5], 24_000)
+            expected_samples, expected_info = read_pcm16_mono_wav(path=path)
+            for read in (read_pcm16_mono_wav, probe_pcm16_mono_wav):
+                for kind in ("memory", "file", "offset"):
+                    with self.subTest(reader=read.__name__, kind=kind):
+                        payload = path.read_bytes()
+                        stream = (
+                            path.open("rb")
+                            if kind == "file"
+                            else io.BytesIO(b"prefix" + payload if kind == "offset" else payload)
+                        )
+                        with stream:
+                            if kind == "offset":
+                                stream.seek(6)
+                            actual = read(path=stream)
+                            expected = (
+                                (expected_samples, expected_info)
+                                if read is read_pcm16_mono_wav
+                                else expected_info
+                            )
+                            self.assertEqual(actual, expected)
+                            self.assertFalse(stream.closed)
+            self.assertEqual(read_pcm16_mono_wav(str(path)), (expected_samples, expected_info))
+
+    def test_pcm16_wav_borrowed_inputs_keep_format_errors_and_ownership(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "audio.wav"
+            write_pcm16_wav(path, [-0.5, 0.5], 24_000)
+            complete = path.read_bytes()
+            invalid = (
+                (b"not WAV", "unreadable WAV"),
+                (complete[:-1], "incomplete"),
+                (complete[:-2], "incomplete"),
+            )
+            with io.BytesIO() as stream:
+                with wave.open(stream, "wb") as output:
+                    output.setnchannels(2)
+                    output.setsampwidth(2)
+                    output.setframerate(24_000)
+                    output.writeframes(b"\0" * 8)
+                invalid += ((stream.getvalue(), "mono 16-bit"),)
+            for read in (read_pcm16_mono_wav, probe_pcm16_mono_wav):
+                for payload, message in invalid:
+                    with self.subTest(reader=read.__name__, message=message, size=len(payload)):
+                        with io.BytesIO(payload) as stream:
+                            with self.assertRaisesRegex(Pcm16MonoWavError, message):
+                                read(stream)
+                            self.assertFalse(stream.closed)
 
     def test_pcm16_wav_probe_rejects_stereo(self):
         with TemporaryDirectory() as directory:

@@ -7,7 +7,9 @@ import wave
 from array import array
 from dataclasses import dataclass
 from operator import index
+from os import PathLike
 from pathlib import Path
+from typing import BinaryIO
 
 from vntts_artifacts.atomic_io import atomic_output_path
 
@@ -26,11 +28,12 @@ class Pcm16MonoWavInfo:
     peak: float
 
 
-def read_pcm16_mono_wav(path):
-    """Read an uncompressed mono 16-bit WAV and return samples plus metadata."""
-    path = Path(path)
+def read_pcm16_mono_wav(path: str | PathLike[str] | BinaryIO) -> tuple[array[int], Pcm16MonoWavInfo]:
+    """Read PCM16 mono samples from a path or a caller-owned binary stream."""
     try:
-        with wave.open(str(path), "rb") as source:
+        with wave.open(
+            str(Path(path)) if isinstance(path, (str, PathLike)) else path, "rb"
+        ) as source:
             if source.getcomptype() != "NONE":
                 raise Pcm16MonoWavError("compressed WAV is not supported")
             if source.getnchannels() != 1 or source.getsampwidth() != 2:
@@ -63,7 +66,7 @@ def read_pcm16_mono_wav(path):
     return samples, info
 
 
-def probe_pcm16_mono_wav(path):
+def probe_pcm16_mono_wav(path: str | PathLike[str] | BinaryIO) -> Pcm16MonoWavInfo:
     """Validate a generated-audio WAV and return its technical metadata."""
     _samples, info = read_pcm16_mono_wav(path)
     return info
