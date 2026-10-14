@@ -125,6 +125,35 @@ class StoryIndexDocumentTest(unittest.TestCase):
         with self.assertRaisesRegex(StoryIndexError, "Unknown"):
             document.records_for_collection("missing")
 
+    def test_writer_returns_normalized_data_detached_from_its_input(self):
+        raw_metadata = metadata()
+        raw_metadata["producer_metadata"] = {1: ("fixture-1",)}
+        raw_metadata["collections"][0]["producer_collection_field"] = {"tags": ["story"]}
+        raw_record = authoring_record(producer_line_field={1: (42,)})
+        expected_metadata = json.loads(json.dumps(raw_metadata))
+        expected_record = json.loads(json.dumps(raw_record))
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            written = write_story_index_document(path, raw_metadata, [raw_record])
+            loaded = load_story_index_document(path)
+
+            raw_metadata["producer_metadata"][1] = ("changed",)
+            raw_metadata["collections"][0]["producer_collection_field"]["tags"].append("changed")
+            raw_record["producer_line_field"][1] = (99,)
+            raw_record["context"]["mood"].append("changed")
+
+            self.assertEqual(written.path, path.resolve())
+            self.assertEqual(written.metadata, loaded.metadata)
+            self.assertEqual(written.producer_metadata["producer_metadata"], {"1": ["fixture-1"]})
+            self.assertEqual(written.records[0].to_record(), expected_record)
+            self.assertEqual(written.records[0].to_record(), loaded.records[0].to_record())
+            self.assertEqual(written.records[0].context, expected_record["context"])
+            self.assertEqual(written.records[0].producer_fields["producer_line_field"], {"1": [42]})
+            self.assertEqual(
+                written.collections[0].to_record(), expected_metadata["collections"][0]
+            )
+            self.assertEqual(written.collections[0].to_record(), loaded.collections[0].to_record())
+
     def test_typed_records_republish_without_losing_fields(self):
         raw_record = authoring_record()
         with TemporaryDirectory() as directory:
@@ -206,6 +235,9 @@ class StoryIndexDocumentTest(unittest.TestCase):
                     self.assertFalse(path.exists())
 
     def test_strict_writer_validates_common_producer_metadata(self):
+        class SchemaVersion(int):
+            pass
+
         cases = (
             ("game", "metadata game", {"game": ""}),
             ("language", "metadata language", {"language": 7}),
@@ -219,6 +251,8 @@ class StoryIndexDocumentTest(unittest.TestCase):
                 "timezone offset",
                 {"generated_at": "2026-08-16T12:00:00"},
             ),
+            ("collections-tuple", "collections", {"collections": tuple(metadata()["collections"])}),
+            ("schema-version-type", "schema version", {"schema_version": SchemaVersion(1)}),
         )
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -249,6 +283,24 @@ class StoryIndexDocumentTest(unittest.TestCase):
                     [authoring_record(producer_nan=float("nan"))],
                 )
             self.assertFalse(record_path.exists())
+
+    def test_invalid_records_preserve_an_existing_destination(self):
+        cases = (
+            [authoring_record(), authoring_record()],
+            [authoring_record(sequence=True)],
+            [authoring_record(text_sha256="0" * 64)],
+            [authoring_record(producer_nan=float("nan"))],
+            [authoring_record(producer_line_field={1, 2})],
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            write_story_index_document(path, metadata(), [authoring_record()])
+            original = path.read_bytes()
+            for records in cases:
+                with self.subTest(records=records):
+                    with self.assertRaises(StoryIndexError):
+                        write_story_index_document(path, metadata(), records)
+                    self.assertEqual(path.read_bytes(), original)
 
 
 if __name__ == "__main__":

@@ -252,18 +252,23 @@ def write_story_index_document(path, metadata, records):
     document_metadata.setdefault("schema", STORY_INDEX_SCHEMA)
     document_metadata.setdefault("schema_version", STORY_INDEX_SCHEMA_VERSION)
     document_metadata["line_count"] = len(raw_records)
-    _parse_story_index_document(path, document_metadata, raw_records)
+    _validate_metadata(document_metadata)
     metadata_json = _dump_strict_json(document_metadata, "metadata")
     record_json = tuple(
         _dump_strict_json(record, f"record {index}")
         for index, record in enumerate(raw_records, start=2)
+    )
+    document = _parse_story_index_document(
+        path,
+        _load_strict_json(metadata_json),
+        tuple(_load_strict_json(record) for record in record_json),
     )
     with atomic_output_path(path) as temporary:
         with temporary.open("w", encoding="utf-8", newline="\n") as stream:
             stream.write(metadata_json + "\n")
             for record in record_json:
                 stream.write(record + "\n")
-    return load_story_index_document(path)
+    return document
 
 
 def write_story_index(path, metadata, records):
