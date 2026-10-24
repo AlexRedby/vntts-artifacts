@@ -2,7 +2,9 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+import vntts_artifacts.story_index as story_index
 from vntts_artifacts import (
     STORY_INDEX_SCHEMA_VERSION,
     StoryIndexDocument,
@@ -153,6 +155,65 @@ class StoryIndexDocumentTest(unittest.TestCase):
                 written.collections[0].to_record(), expected_metadata["collections"][0]
             )
             self.assertEqual(written.collections[0].to_record(), loaded.collections[0].to_record())
+
+    def test_reader_and_writer_adopt_owned_rows_without_changing_mutable_boundaries(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            write_story_index_document(path, metadata(), [authoring_record()])
+            for operation in ("reader", "writer"):
+                with self.subTest(operation=operation):
+                    decoded_rows = []
+                    decode = story_index._load_strict_json
+
+                    def capture_owned_row(value):
+                        row = decode(value)
+                        decoded_rows.append(row)
+                        return row
+
+                    with patch.object(story_index, "_load_strict_json", capture_owned_row):
+                        if operation == "reader":
+                            document = load_story_index_document(path)
+                        else:
+                            document = write_story_index_document(
+                                path, metadata(), [authoring_record()]
+                            )
+
+                    record = document.records[0]
+                    self.assertIs(record.document, decoded_rows[-1])
+                    self.assertIsNot(record.context, record.document["context"])
+                    record.context["scene"] = "changed"
+                    record.producer_fields["portrait"] = "changed.png"
+                    exported = record.to_record()
+                    exported["line_id"] = "changed"
+                    self.assertEqual(record.to_record(), authoring_record())
+
+                    collection = document.collections[0]
+                    self.assertIsNot(collection.document, decoded_rows[0]["collections"][0])
+                    collection.producer_fields["producer_collection_field"] = "changed"
+                    collection.to_record().clear()
+                    self.assertEqual(collection.to_record(), metadata()["collections"][0])
+
+                    record.document["context"]["mood"].append("changed")
+                    self.assertEqual(
+                        load_story_index_document(path).records[0].to_record(), authoring_record()
+                    )
+
+    def test_writer_snapshots_reused_generator_mappings(self):
+        def records():
+            record = authoring_record()
+            for number in (1, 2):
+                record["line_id"] = f"line:{number}"
+                record["sequence"] = number
+                yield record
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "story.jsonl"
+            written = write_story_index_document(path, metadata(), records())
+            loaded = load_story_index_document(path)
+
+        for document in (written, loaded):
+            self.assertEqual([record.line_id for record in document.records], ["line:1", "line:2"])
+            self.assertEqual([record.sequence for record in document.records], [1, 2])
 
     def test_typed_records_republish_without_losing_fields(self):
         raw_record = authoring_record()

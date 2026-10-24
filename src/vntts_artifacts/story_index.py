@@ -469,7 +469,7 @@ def _parse_story_index_record(record, collection_ids):
         producer_fields={
             key: value for key, value in record.items() if key not in _STANDARD_LINE_FIELDS
         },
-        document=dict(record),
+        document=record,
     )
 
 
