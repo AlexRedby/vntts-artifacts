@@ -25,6 +25,7 @@ from vntts_artifacts.generated_audio import (
     GeneratedAudioRecord,
     load_generated_audio_document,
     load_generated_audio_manifest,
+    parse_generated_audio_document,
     write_generated_audio_document,
     write_generated_audio_manifest,
 )
@@ -117,6 +118,7 @@ __all__ = [
     "load_live_sequence_plan",
     "load_generated_audio_document",
     "load_generated_audio_manifest",
+    "parse_generated_audio_document",
     "load_story_index",
     "load_story_index_document",
     "load_voice_generation_queue",

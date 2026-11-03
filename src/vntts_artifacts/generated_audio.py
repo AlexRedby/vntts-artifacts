@@ -162,7 +162,7 @@ def load_generated_audio_document(path):
         raise GeneratedAudioManifestError(
             f"Unable to read generated-audio manifest {path}: {error}"
         ) from error
-    return _parse_generated_audio_document(path, document)
+    return parse_generated_audio_document(path, document)
 
 
 def write_generated_audio_manifest(path, metadata, records):
@@ -190,8 +190,7 @@ def write_generated_audio_document(path, metadata, records):
     document.setdefault("schema_version", GENERATED_AUDIO_SCHEMA_VERSION)
     document["entry_count"] = len(raw_records)
     document["entries"] = list(raw_records)
-    _dump_strict_json(document, "document")
-    parsed = _parse_generated_audio_document(path, document)
+    parsed = parse_generated_audio_document(path, document)
     _verify_entries(parsed.records)
     atomic_write_json(path, document)
     return load_generated_audio_document(path)
@@ -298,7 +297,10 @@ def _validate_document(document, manifest_path):
     return metadata, tuple(entries)
 
 
-def _parse_generated_audio_document(path, document):
+def parse_generated_audio_document(path, document):
+    """Validate an in-memory document without reading manifest or audio bytes."""
+    path = Path(path).expanduser().resolve()
+    _dump_strict_json(document, "document")
     metadata, entries = _validate_document(document, path)
     manifest_root = Path(path).parent.resolve()
     for index, entry in enumerate(entries, start=1):

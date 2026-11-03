@@ -3,6 +3,7 @@ import math
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from vntts_artifacts import (
     GeneratedAudioDocument,
@@ -12,6 +13,7 @@ from vntts_artifacts import (
     GeneratedAudioRecord,
     load_generated_audio_document,
     load_generated_audio_manifest,
+    parse_generated_audio_document,
     write_generated_audio_document,
     write_generated_audio_manifest,
 )
@@ -56,6 +58,53 @@ def generated_record(audio, **overrides):
 
 
 class GeneratedAudioDocumentTest(unittest.TestCase):
+    def test_in_memory_parser_matches_loader_without_reading_files(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "line.wav"
+            audio.write_bytes(b"synthetic WAV fixture")
+            path = root / "generated.json"
+            loaded = write_generated_audio_document(path, metadata(), [generated_record(audio)])
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            path.unlink()
+            audio.unlink()
+            with patch.object(Path, "open", side_effect=AssertionError("unexpected file read")):
+                parsed = parse_generated_audio_document(str(path), raw)
+
+        self.assertEqual(parsed, loaded)
+        self.assertEqual(parsed.records[0].document, loaded.records[0].document)
+        self.assertEqual(parsed.records[0].producer_fields, loaded.records[0].producer_fields)
+
+    def test_in_memory_parser_rejects_malformed_documents_and_path_escape_without_reads(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            audio = root / "line.wav"
+            audio.write_bytes(b"fixture")
+            record = generated_record(audio)
+            audio.unlink()
+            document = {
+                **metadata(),
+                "schema": "vntts.generated-audio",
+                "schema_version": 1,
+                "entry_count": 1,
+                "entries": [record],
+            }
+            cases = (
+                (None, "must be an object"),
+                ({**document, "entry_count": 2}, "entry count mismatch"),
+                ({**document, "producer_value": {1, 2}}, "valid JSON"),
+                ({**document, "entries": [{**record, "producer_value": math.nan}]}, "valid JSON"),
+                ({**document, "entries": [{**record, "seed": True}]}, "seed"),
+                ({**document, "entries": [{**record, "audio": "../outside.wav"}]}, "relative"),
+            )
+            for raw, pattern in cases:
+                with (
+                    self.subTest(pattern=pattern),
+                    patch.object(Path, "open", side_effect=AssertionError("unexpected file read")),
+                    self.assertRaisesRegex(GeneratedAudioManifestError, pattern),
+                ):
+                    parse_generated_audio_document(root / "generated.json", raw)
+
     def test_lossless_document_exposes_typed_provenance_and_extensions(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
